@@ -5,6 +5,7 @@ import { ThemeContext } from './context/ThemeContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Models from './pages/Models';
+import CreateModel from './pages/CreateModel';
 import Deploy from './pages/Deploy';
 import Chat from './pages/Chat';
 import ApiEndpoints from './pages/ApiEndpoints';
@@ -134,6 +135,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/models" element={<Models />} />
+              <Route path="/create-model" element={<CreateModel />} />
               <Route path="/deploy" element={<Deploy />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/api-endpoints" element={<ApiEndpoints />} />

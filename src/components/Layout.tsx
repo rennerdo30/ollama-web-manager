@@ -12,8 +12,6 @@ import {
   ListItemText,
   Toolbar,
   Typography,
-  useTheme,
-  alpha,
   Avatar
 } from '@mui/material';
 import {
@@ -24,7 +22,8 @@ import {
   Code as CodeIcon,
   Chat as ChatIcon,
   Api as ApiIcon,
-  SmartToy as BotIcon
+  SmartToy as BotIcon,
+  AutoFixHigh as CreateIcon
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -37,7 +36,6 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const theme = useTheme();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -46,6 +44,7 @@ export default function Layout({ children }: LayoutProps) {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
     { text: 'Models', icon: <StorageIcon />, path: '/models' },
+    { text: 'Create Model', icon: <CreateIcon />, path: '/create-model' },
     { text: 'Deploy Models', icon: <CodeIcon />, path: '/deploy' },
     { text: 'Chat', icon: <ChatIcon />, path: '/chat' },
     { text: 'API Endpoints', icon: <ApiIcon />, path: '/api-endpoints' },
@@ -74,24 +73,29 @@ export default function Layout({ children }: LayoutProps) {
                   selected={isSelected}
                   sx={{
                     borderRadius: 2,
+                    mb: 0.5,
+                    mx: 1,
                     py: 1.5,
-                    px: 2,
-                    bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
-                    color: isSelected ? 'primary.main' : 'text.secondary',
-                    '&:hover': {
-                      bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.text.primary, 0.05),
-                    },
+                    transition: 'all 0.2s',
                     '&.Mui-selected': {
-                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                      bgcolor: 'primary.main',
+                      color: 'primary.contrastText',
                       '&:hover': {
-                        bgcolor: alpha(theme.palette.primary.main, 0.15),
-                      }
+                        bgcolor: 'primary.dark',
+                      },
+                      '& .MuiListItemIcon-root': {
+                        color: 'inherit',
+                      },
+                    },
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                      transform: 'translateX(4px)'
                     }
                   }}
                 >
                   <ListItemIcon sx={{
                     minWidth: 40,
-                    color: isSelected ? 'primary.main' : 'text.secondary'
+                    color: isSelected ? 'inherit' : 'text.secondary'
                   }}>
                     {item.icon}
                   </ListItemIcon>

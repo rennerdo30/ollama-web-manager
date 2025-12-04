@@ -31,9 +31,21 @@ interface ModelCardProps {
   model: Model;
   onDelete: (model: Model) => void;
   onDeploy: (model: Model) => void;
+  onInfo: (model: Model) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (model: Model) => void;
 }
 
-export default function ModelCard({ model, onDelete, onDeploy }: ModelCardProps) {
+export default function ModelCard({
+  model,
+  onDelete,
+  onDeploy,
+  onInfo,
+  selectable = false,
+  selected = false,
+  onSelect
+}: ModelCardProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const open = Boolean(anchorEl);
@@ -94,8 +106,42 @@ export default function ModelCard({ model, onDelete, onDeploy }: ModelCardProps)
           boxShadow: theme.shadows[8],
         },
         borderRadius: 3,
-        overflow: 'visible'
-      }}>
+        overflow: 'visible',
+        border: selected ? `2px solid ${theme.palette.primary.main}` : 'none',
+        cursor: selectable ? 'pointer' : 'default'
+      }}
+        onClick={() => {
+          if (selectable && onSelect) {
+            onSelect(model);
+          }
+        }}
+      >
+        {selectable && (
+          <Box sx={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            zIndex: 10,
+            bgcolor: selected ? 'primary.main' : 'background.paper',
+            borderRadius: '50%',
+            width: 24,
+            height: 24,
+            border: `2px solid ${selected ? theme.palette.primary.main : theme.palette.divider}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: theme.shadows[2]
+          }}>
+            {selected && (
+              <Box sx={{
+                width: 10,
+                height: 10,
+                bgcolor: 'white',
+                borderRadius: '50%'
+              }} />
+            )}
+          </Box>
+        )}
         <CardContent sx={{ flexGrow: 1, p: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -225,6 +271,13 @@ export default function ModelCard({ model, onDelete, onDeploy }: ModelCardProps)
         }} sx={{ gap: 1.5 }}>
           <DeployIcon fontSize="small" color="primary" />
           <Typography variant="body2" fontWeight={500}>Deploy</Typography>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          handleClose();
+          onInfo(model);
+        }} sx={{ gap: 1.5 }}>
+          <CodeIcon fontSize="small" color="info" />
+          <Typography variant="body2" fontWeight={500}>Details</Typography>
         </MenuItem>
         <Divider sx={{ my: 0.5 }} />
         <MenuItem onClick={handleDeleteClick} sx={{ gap: 1.5, color: 'error.main' }}>

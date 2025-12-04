@@ -169,69 +169,85 @@ export default function Dashboard() {
 
   return (
     <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
+      <Box sx={{ mb: 5 }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 800, letterSpacing: -0.5 }}>
           Dashboard
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Overview of your local Ollama instance
+        <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600 }}>
+          Real-time overview of your local Ollama instance performance and model library.
         </Typography>
       </Box>
 
       <Grid container spacing={3}>
-        {/* CPU Usage */}
+        {/* System Stats Row */}
+        <Grid item xs={12}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: 'text.primary' }}>
+            System Health
+          </Typography>
+        </Grid>
+
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="CPU Usage"
             value={`${systemInfo?.cpu.usage.toFixed(1)}%`}
             subtitle={`${systemInfo?.cpu.cores} cores / ${systemInfo?.cpu.threads} threads`}
-            icon={<SpeedIcon />}
+            icon={<SpeedIcon fontSize="medium" />}
             color="primary"
           />
         </Grid>
 
-        {/* Memory Usage */}
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Memory Usage"
             value={`${systemInfo?.memory.used} GB`}
-            subtitle={`of ${systemInfo?.memory.total} GB Total (${((systemInfo?.memory.used || 0) / (systemInfo?.memory.total || 1) * 100).toFixed(1)}%)`}
-            icon={<MemoryIcon />}
+            subtitle={`of ${systemInfo?.memory.total} GB Total`}
+            icon={<MemoryIcon fontSize="medium" />}
             color="secondary"
           />
         </Grid>
 
-        {/* GPU Usage (if available) */}
         {systemInfo?.gpus && systemInfo.gpus.length > 0 && systemInfo.gpus.map((gpu, index) => (
           <Grid item xs={12} sm={6} md={3} key={`gpu-${index}`}>
             <StatCard
               title={`GPU ${index + 1}`}
               value={`${gpu.usage.toFixed(1)}%`}
-              subtitle={`${gpu.name} • ${gpu.memory.used}/${gpu.memory.total} GB`}
-              icon={<ViewModuleIcon />}
+              subtitle={`${gpu.name}`}
+              icon={<ViewModuleIcon fontSize="medium" />}
               color="success"
             />
           </Grid>
         ))}
 
-        {/* Models */}
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Models Available"
+            title="Models"
             value={models.length}
             subtitle="Ready to deploy"
-            icon={<StorageIcon />}
+            icon={<StorageIcon fontSize="medium" />}
             color="info"
           />
         </Grid>
 
-        {/* CPU Chart */}
+        {/* Charts Row */}
+        <Grid item xs={12} sx={{ mt: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: 'text.primary' }}>
+            Performance History
+          </Typography>
+        </Grid>
+
         <Grid item xs={12} md={6}>
-          <Paper elevation={1} sx={{ p: 3, height: 350, borderRadius: 3 }}>
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                CPU Usage History
+          <Paper elevation={0} sx={{
+            p: 3,
+            height: 350,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider'
+          }}>
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                CPU Usage
               </Typography>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />
             </Box>
             <Box sx={{ height: 270 }}>
               <Line options={chartOptions} data={cpuData} />
@@ -239,65 +255,23 @@ export default function Dashboard() {
           </Paper>
         </Grid>
 
-        {/* Memory Chart */}
         <Grid item xs={12} md={6}>
-          <Paper elevation={1} sx={{ p: 3, height: 350, borderRadius: 3 }}>
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Memory Usage History
+          <Paper elevation={0} sx={{
+            p: 3,
+            height: 350,
+            borderRadius: 3,
+            border: '1px solid',
+            borderColor: 'divider'
+          }}>
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                Memory Usage
               </Typography>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'secondary.main' }} />
             </Box>
             <Box sx={{ height: 270 }}>
               <Line options={chartOptions} data={memoryData} />
             </Box>
-          </Paper>
-        </Grid>
-
-        {/* Model List */}
-        <Grid item xs={12}>
-          <Paper elevation={1} sx={{ p: 3, borderRadius: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-              Available Models
-            </Typography>
-            <Grid container spacing={2}>
-              {models.length > 0 ? (
-                models.map((model, index) => (
-                  <Grid item xs={12} sm={6} md={4} key={index}>
-                    <Box sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        borderColor: 'primary.main',
-                        bgcolor: 'action.hover'
-                      }
-                    }}>
-                      <Typography sx={{ fontWeight: 500 }}>{model.name}</Typography>
-                      <Typography variant="caption" sx={{
-                        bgcolor: 'action.selected',
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        fontWeight: 600
-                      }}>
-                        {(model.size / (1024 * 1024 * 1024)).toFixed(2)} GB
-                      </Typography>
-                    </Box>
-                  </Grid>
-                ))
-              ) : (
-                <Grid item xs={12}>
-                  <Typography color="text.secondary">
-                    No models available. Go to the Models page to pull models.
-                  </Typography>
-                </Grid>
-              )}
-            </Grid>
           </Paper>
         </Grid>
       </Grid>

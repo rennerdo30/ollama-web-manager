@@ -1,4 +1,4 @@
-import { Card, CardContent, Typography, Box, SxProps, Theme, useTheme, alpha } from '@mui/material';
+import { Card, CardContent, Typography, Box, SxProps, Theme, useTheme } from '@mui/material';
 import { ReactNode } from 'react';
 
 interface StatCardProps {
@@ -36,27 +36,24 @@ export default function StatCard({ title, value, icon, subtitle, sx, color = 'pr
       },
       ...sx
     }}>
-      <CardContent sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+      <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+          <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {title}
+          </Typography>
           <Box sx={{
-            p: 1,
-            borderRadius: 1.5,
-            bgcolor: alpha(mainColor, 0.1),
             color: mainColor,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            opacity: 0.8
           }}>
             {icon}
           </Box>
         </Box>
 
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5, fontSize: '1.75rem' }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, fontSize: '2rem', color: 'text.primary' }}>
           {value}
-        </Typography>
-
-        <Typography color="text.secondary" variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
-          {title}
         </Typography>
 
         {subtitle && (

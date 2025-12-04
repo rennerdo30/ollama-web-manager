@@ -14,6 +14,7 @@ import ModelCard from '../components/ModelCard';
 import LoadingState from '../components/LoadingState';
 import ModelPullDialog from '../components/ModelPullDialog';
 import ModelDeployDialog from '../components/ModelDeployDialog';
+import ModelDetailsDialog from '../components/ModelDetailsDialog';
 import { ollamaService, Model, ModelConfig } from '../api/ollamaApi';
 
 export default function Models() {
@@ -22,6 +23,7 @@ export default function Models() {
   const [error, setError] = useState('');
   const [isPullDialogOpen, setPullDialogOpen] = useState(false);
   const [isDeployDialogOpen, setDeployDialogOpen] = useState(false);
+  const [isInfoDialogOpen, setInfoDialogOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isPulling, setIsPulling] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
@@ -66,6 +68,16 @@ export default function Models() {
       setDeployDialogOpen(false);
       setSelectedModel(null);
     }
+  };
+
+  const handleOpenInfoDialog = (model: Model) => {
+    setSelectedModel(model);
+    setInfoDialogOpen(true);
+  };
+
+  const handleCloseInfoDialog = () => {
+    setInfoDialogOpen(false);
+    setSelectedModel(null);
   };
 
   const handlePullModel = async (modelName: string) => {
@@ -152,6 +164,58 @@ export default function Models() {
     }
   };
 
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  // ... existing code ...
+
+  const handleToggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedModels([]);
+  };
+
+  const handleSelectModel = (model: Model) => {
+    if (selectedModels.includes(model.name)) {
+      setSelectedModels(selectedModels.filter(name => name !== model.name));
+    } else {
+      setSelectedModels([...selectedModels, model.name]);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedModels.length === 0) return;
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedModels.length} models?`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      for (const name of selectedModels) {
+        await ollamaService.deleteModel(name);
+      }
+
+      await fetchModels();
+      setSelectedModels([]);
+      setIsSelectionMode(false);
+      setLoading(false);
+
+      setSnackbar({
+        open: true,
+        message: `Successfully deleted ${selectedModels.length} models`,
+        severity: 'success'
+      });
+    } catch (err) {
+      console.error('Error deleting models:', err);
+      setLoading(false);
+      setSnackbar({
+        open: true,
+        message: 'Failed to delete some models',
+        severity: 'error'
+      });
+    }
+  };
+
   const handleCloseSnackbar = () => {
     setSnackbar({ ...snackbar, open: false });
   };
@@ -178,20 +242,50 @@ export default function Models() {
             Manage your downloaded LLMs
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<DownloadIcon />}
-          onClick={handleOpenPullDialog}
-          sx={{
-            borderRadius: 2,
-            px: 3,
-            py: 1,
-            fontWeight: 600,
-            boxShadow: theme.shadows[4]
-          }}
-        >
-          Pull New Model
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          {isSelectionMode ? (
+            <>
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={handleBulkDelete}
+                disabled={selectedModels.length === 0}
+                sx={{ borderRadius: 2, fontWeight: 600 }}
+              >
+                Delete Selected ({selectedModels.length})
+              </Button>
+              <Button
+                variant="text"
+                onClick={handleToggleSelectionMode}
+                sx={{ borderRadius: 2, fontWeight: 600 }}
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outlined"
+              onClick={handleToggleSelectionMode}
+              sx={{ borderRadius: 2, fontWeight: 600 }}
+            >
+              Select Models
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            startIcon={<DownloadIcon />}
+            onClick={handleOpenPullDialog}
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1,
+              fontWeight: 600,
+              boxShadow: theme.shadows[4]
+            }}
+          >
+            Pull New Model
+          </Button>
+        </Box>
       </Box>
 
       {error && (
@@ -209,6 +303,10 @@ export default function Models() {
                   model={model}
                   onDelete={handleDeleteModel}
                   onDeploy={handleOpenDeployDialog}
+                  onInfo={handleOpenInfoDialog}
+                  selectable={isSelectionMode}
+                  selected={selectedModels.includes(model.name)}
+                  onSelect={handleSelectModel}
                 />
               </Box>
             </Grid>
@@ -259,6 +357,13 @@ export default function Models() {
         onDeploy={handleDeployModel}
         isDeploying={isDeploying}
         model={selectedModel}
+      />
+
+      {/* Model Details Dialog */}
+      <ModelDetailsDialog
+        open={isInfoDialogOpen}
+        onClose={handleCloseInfoDialog}
+        modelName={selectedModel?.name || ''}
       />
 
       {/* Snackbar for notifications */}

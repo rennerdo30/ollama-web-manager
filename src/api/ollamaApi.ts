@@ -156,6 +156,63 @@ export const ollamaService = {
     }
   },
 
+  // Show model information (Modelfile, parameters, etc.)
+  async showModelInfo(name: string): Promise<any> {
+    try {
+      const response = await ollamaApi.post('/show', { name });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching model info:', error);
+      throw error;
+    }
+  },
+
+  // Create a new model from a Modelfile
+  async createModel(name: string, modelfile: string, onProgress?: (status: string) => void): Promise<void> {
+    try {
+      const response = await fetch(`${getServerUrl()}/api/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, modelfile }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create model: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is empty');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            if (data.status && onProgress) {
+              onProgress(data.status);
+            }
+          } catch (e) {
+            console.error('Error parsing create progress:', e);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error creating model:', error);
+      throw error;
+    }
+  },
+
   // Get system information from the backend service
   async getSystemInfo(): Promise<SystemInfo> {
     try {
