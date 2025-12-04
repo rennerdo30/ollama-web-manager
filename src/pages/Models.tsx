@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react';
-import { 
-  Grid, 
-  Typography, 
-  Box, 
-  Button, 
+import {
+  Grid,
+  Typography,
+  Box,
+  Button,
   Alert,
   Fab,
-  Snackbar
+  Snackbar,
+  useTheme
 } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Add as AddIcon, CloudDownload as DownloadIcon } from '@mui/icons-material';
 import ModelCard from '../components/ModelCard';
 import LoadingState from '../components/LoadingState';
 import ModelPullDialog from '../components/ModelPullDialog';
 import ModelDeployDialog from '../components/ModelDeployDialog';
-import { ollamaService, Model } from '../api/ollamaApi';
+import { ollamaService, Model, ModelConfig } from '../api/ollamaApi';
 
 export default function Models() {
   const [models, setModels] = useState<Model[]>([]);
@@ -26,6 +27,7 @@ export default function Models() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [pullProgress, setPullProgress] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const theme = useTheme();
 
   const fetchModels = async () => {
     try {
@@ -70,17 +72,17 @@ export default function Models() {
     try {
       setIsPulling(true);
       setPullProgress(0);
-      
+
       await ollamaService.pullModel(modelName, (progress) => {
         setPullProgress(progress);
       });
-      
+
       setIsPulling(false);
       setPullDialogOpen(false);
-      
+
       // Refresh models list
       await fetchModels();
-      
+
       setSnackbar({
         open: true,
         message: `Successfully pulled model: ${modelName}`,
@@ -97,21 +99,21 @@ export default function Models() {
     }
   };
 
-  const handleDeployModel = async (config: any) => {
+  const handleDeployModel = async (config: ModelConfig) => {
     try {
       setIsDeploying(true);
-      
-      await ollamaService.createModelServer(config.name, {
-        threads: config.threads,
-        context_size: config.contextSize,
-        gpu_layers: config.gpu_layers,
-        temperature: config.temperature,
-        system_prompt: config.system_prompt
+
+      await ollamaService.createModelServer(config.name as string, {
+        threads: config.threads as number,
+        context_size: config.contextSize as number,
+        gpu_layers: config.gpu_layers as number,
+        temperature: config.temperature as number,
+        system_prompt: config.system_prompt as string
       });
-      
+
       setIsDeploying(false);
       setDeployDialogOpen(false);
-      
+
       setSnackbar({
         open: true,
         message: `Successfully deployed model: ${config.name}`,
@@ -131,10 +133,10 @@ export default function Models() {
   const handleDeleteModel = async (model: Model) => {
     try {
       await ollamaService.deleteModel(model.name);
-      
+
       // Refresh models list
       await fetchModels();
-      
+
       setSnackbar({
         open: true,
         message: `Successfully deleted model: ${model.name}`,
@@ -159,22 +161,41 @@ export default function Models() {
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">
-          Models
-        </Typography>
-        <Button 
-          variant="contained" 
-          startIcon={<AddIcon />}
+    <Box sx={{ minHeight: '100%', pb: 4 }}>
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        mb: 4,
+        flexWrap: 'wrap',
+        gap: 2
+      }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+            Local Models
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Manage your downloaded LLMs
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<DownloadIcon />}
           onClick={handleOpenPullDialog}
+          sx={{
+            borderRadius: 2,
+            px: 3,
+            py: 1,
+            fontWeight: 600,
+            boxShadow: theme.shadows[4]
+          }}
         >
-          Pull Model
+          Pull New Model
         </Button>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
           {error}
         </Alert>
       )}
@@ -182,29 +203,40 @@ export default function Models() {
       <Grid container spacing={3}>
         {models.length > 0 ? (
           models.map((model, index) => (
-            <Grid item xs={12} sm={6} md={4} key={index}>
-              <ModelCard 
-                model={model} 
-                onDelete={handleDeleteModel}
-                onDeploy={handleOpenDeployDialog}
-              />
+            <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
+              <Box sx={{ height: '100%' }}>
+                <ModelCard
+                  model={model}
+                  onDelete={handleDeleteModel}
+                  onDeploy={handleOpenDeployDialog}
+                />
+              </Box>
             </Grid>
           ))
         ) : (
           <Grid item xs={12}>
-            <Box sx={{ textAlign: 'center', py: 5 }}>
+            <Box sx={{
+              textAlign: 'center',
+              py: 8,
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              border: '1px dashed',
+              borderColor: 'divider'
+            }}>
+              <DownloadIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 No models available
               </Typography>
-              <Typography color="text.secondary" paragraph>
-                Pull a model from the Ollama library to get started.
+              <Typography color="text.secondary" paragraph sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
+                Your local library is empty. Pull a model from the Ollama library to get started.
               </Typography>
-              <Button 
-                variant="contained" 
+              <Button
+                variant="outlined"
                 startIcon={<AddIcon />}
                 onClick={handleOpenPullDialog}
+                sx={{ borderRadius: 2 }}
               >
-                Pull Model
+                Browse Models
               </Button>
             </Box>
           </Grid>
@@ -212,7 +244,7 @@ export default function Models() {
       </Grid>
 
       {/* Pull Model Dialog */}
-      <ModelPullDialog 
+      <ModelPullDialog
         open={isPullDialogOpen}
         onClose={handleClosePullDialog}
         onPull={handlePullModel}
@@ -221,7 +253,7 @@ export default function Models() {
       />
 
       {/* Deploy Model Dialog */}
-      <ModelDeployDialog 
+      <ModelDeployDialog
         open={isDeployDialogOpen}
         onClose={handleCloseDeployDialog}
         onDeploy={handleDeployModel}
@@ -230,16 +262,17 @@ export default function Models() {
       />
 
       {/* Snackbar for notifications */}
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={6000} 
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={handleCloseSnackbar} 
+        <Alert
+          onClose={handleCloseSnackbar}
           severity={snackbar.severity}
           variant="filled"
+          sx={{ borderRadius: 2, fontWeight: 500 }}
         >
           {snackbar.message}
         </Alert>
@@ -247,8 +280,8 @@ export default function Models() {
 
       {/* FAB for mobile */}
       <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
-        <Fab 
-          color="primary" 
+        <Fab
+          color="primary"
           sx={{ position: 'fixed', bottom: 16, right: 16 }}
           onClick={handleOpenPullDialog}
         >

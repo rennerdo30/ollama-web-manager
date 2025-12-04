@@ -1,24 +1,27 @@
 import { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Paper, 
-  TextField, 
-  Button, 
-  Switch, 
-  FormGroup, 
+import {
+  Box,
+  Typography,
+  Paper,
+  TextField,
+  Button,
+  Switch,
+  FormGroup,
   FormControlLabel,
   Divider,
   Alert,
   Snackbar
 } from '@mui/material';
-import { useThemeContext } from '../App';
+import { useThemeContext } from '../context/ThemeContext';
 import { updateApiBaseUrl } from '../api/ollamaApi';
 
 export default function Settings() {
   const { darkMode, toggleDarkMode } = useThemeContext();
   const [serverUrl, setServerUrl] = useState(() => {
     return localStorage.getItem('serverUrl') || 'http://localhost:11434';
+  });
+  const [monitoringServerUrl, setMonitoringServerUrl] = useState(() => {
+    return localStorage.getItem('monitoringServerUrl') || 'http://localhost:3001';
   });
   const [autoRefresh, setAutoRefresh] = useState(() => {
     return localStorage.getItem('autoRefresh') !== 'false';
@@ -37,12 +40,13 @@ export default function Settings() {
   const handleSaveSettings = () => {
     // Save settings to localStorage
     localStorage.setItem('serverUrl', serverUrl);
+    localStorage.setItem('monitoringServerUrl', monitoringServerUrl);
     localStorage.setItem('autoRefresh', String(autoRefresh));
     localStorage.setItem('refreshInterval', String(refreshInterval));
-    
+
     // Update API base URL
     updateApiBaseUrl(serverUrl);
-    
+
     setSnackbar({
       open: true,
       message: 'Settings saved successfully',
@@ -65,7 +69,7 @@ export default function Settings() {
           Server Settings
         </Typography>
         <Divider sx={{ mb: 3 }} />
-        
+
         <Box sx={{ mb: 3 }}>
           <TextField
             label="Ollama Server URL"
@@ -75,9 +79,18 @@ export default function Settings() {
             helperText="The URL of your Ollama server instance"
             sx={{ mb: 2 }}
           />
-          
-          <Button 
-            variant="contained" 
+
+          <TextField
+            label="System Monitoring Server URL"
+            fullWidth
+            value={monitoringServerUrl}
+            onChange={(e) => setMonitoringServerUrl(e.target.value)}
+            helperText="The URL of the system monitoring server (for real hardware metrics)"
+            sx={{ mb: 2 }}
+          />
+
+          <Button
+            variant="contained"
             onClick={handleSaveSettings}
           >
             Save Server Settings
@@ -90,28 +103,28 @@ export default function Settings() {
           UI Settings
         </Typography>
         <Divider sx={{ mb: 3 }} />
-        
+
         <FormGroup>
-          <FormControlLabel 
+          <FormControlLabel
             control={
-              <Switch 
-                checked={darkMode} 
-                onChange={toggleDarkMode} 
+              <Switch
+                checked={darkMode}
+                onChange={toggleDarkMode}
               />
-            } 
-            label="Dark Mode" 
+            }
+            label="Dark Mode"
           />
-          
-          <FormControlLabel 
+
+          <FormControlLabel
             control={
-              <Switch 
-                checked={autoRefresh} 
-                onChange={(e) => setAutoRefresh(e.target.checked)} 
+              <Switch
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
               />
-            } 
-            label="Auto-refresh Dashboard" 
+            }
+            label="Auto-refresh Dashboard"
           />
-          
+
           {autoRefresh && (
             <Box sx={{ ml: 3, mt: 2 }}>
               <TextField
@@ -125,10 +138,10 @@ export default function Settings() {
             </Box>
           )}
         </FormGroup>
-        
+
         <Box sx={{ mt: 3 }}>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             onClick={handleSaveSettings}
           >
             Save UI Settings
@@ -141,7 +154,7 @@ export default function Settings() {
           About
         </Typography>
         <Divider sx={{ mb: 3 }} />
-        
+
         <Typography variant="body1" paragraph>
           Ollama Web Manager v0.1.0
         </Typography>
@@ -165,14 +178,14 @@ export default function Settings() {
       </Paper>
 
       {/* Snackbar for notifications */}
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={6000} 
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={handleCloseSnackbar} 
+        <Alert
+          onClose={handleCloseSnackbar}
           severity={snackbar.severity}
           variant="filled"
         >

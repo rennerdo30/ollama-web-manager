@@ -1,9 +1,9 @@
-import { 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions, 
-  Button, 
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
   TextField,
   Typography,
   Box,
@@ -13,26 +13,27 @@ import {
   Select,
   MenuItem,
   Alert,
-  SelectChangeEvent,
-  Divider
+
+  Divider,
+  CircularProgress
 } from '@mui/material';
 import { useState, useEffect } from 'react';
-import { Model, ollamaService, GpuInfo, SystemInfo } from '../api/ollamaApi';
+import { Model, ollamaService, SystemInfo, ModelConfig } from '../api/ollamaApi';
 
 interface ModelDeployDialogProps {
   open: boolean;
   onClose: () => void;
-  onDeploy: (config: any) => Promise<void>;
+  onDeploy: (config: ModelConfig) => Promise<void>;
   isDeploying: boolean;
   model: Model | null;
 }
 
-export default function ModelDeployDialog({ 
-  open, 
-  onClose, 
-  onDeploy, 
+export default function ModelDeployDialog({
+  open,
+  onClose,
+  onDeploy,
   isDeploying,
-  model 
+  model
 }: ModelDeployDialogProps) {
   const [config, setConfig] = useState({
     threads: 4,
@@ -46,9 +47,9 @@ export default function ModelDeployDialog({
   const [error, setError] = useState('');
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [loading, setLoading] = useState(false);
-  
+
   // Recommended context sizes based on model size (parameters)
-  const recommendedContextSizes: {[key: string]: number} = {
+  const recommendedContextSizes: { [key: string]: number } = {
     "7b": 4096,
     "13b": 4096,
     "34b": 8192,
@@ -79,27 +80,27 @@ export default function ModelDeployDialog({
       // Get model size from name (e.g., llama2:7b -> 7b)
       const modelSizeMatch = model.name.match(/(\d+)b/i);
       const modelSize = modelSizeMatch ? modelSizeMatch[1].toLowerCase() : null;
-      
+
       // Set recommended context size based on model size
-      const recommendedContext = modelSize && recommendedContextSizes[modelSize] 
-        ? recommendedContextSizes[modelSize] 
+      const recommendedContext = modelSize && recommendedContextSizes[modelSize]
+        ? recommendedContextSizes[modelSize]
         : 4096;
-      
+
       // Set recommended thread count based on CPU cores
       const recommendedThreads = Math.max(2, Math.min(
         Math.floor(systemInfo.cpu.threads / 2), // Half the available threads
         8 // Cap at 8 threads by default
       ));
-      
+
       // Set recommended GPU layers based on available GPU memory
       // If model has quantization level, adjust recommendation
       let recommendedGpuLayers = 0;
-      
+
       if (systemInfo.gpus && systemInfo.gpus.length > 0) {
         // Simple formula: If we have a GPU, use it for all layers
         recommendedGpuLayers = 100; // 100 means all layers
       }
-      
+
       // Reset config with recommended values
       setConfig({
         threads: recommendedThreads,
@@ -108,11 +109,12 @@ export default function ModelDeployDialog({
         temperature: 0.7,
         system_prompt: "",
         parallel_executions: 1,
-        selected_gpus: systemInfo.gpus && systemInfo.gpus.length > 0 
+        selected_gpus: systemInfo.gpus && systemInfo.gpus.length > 0
           ? [0] // Default to the first GPU
           : []
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, systemInfo]);
 
   const handleDeploy = async () => {
@@ -126,7 +128,7 @@ export default function ModelDeployDialog({
         name: model.name,
         ...config
       });
-    } catch (err) {
+    } catch {
       setError('Failed to deploy model. Please try again.');
     }
   };
@@ -138,7 +140,7 @@ export default function ModelDeployDialog({
     }
   };
 
-  const handleChange = (field: string, value: any) => {
+  const handleChange = (field: string, value: number | string | number[]) => {
     setConfig(prev => ({
       ...prev,
       [field]: value
@@ -159,8 +161,9 @@ export default function ModelDeployDialog({
           </Alert>
         )}
 
-        <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+        <Typography variant="h6" gutterBottom sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
           Resource Configuration
+          {loading && <CircularProgress size={20} />}
         </Typography>
         <Divider sx={{ mb: 2 }} />
 
@@ -246,7 +249,7 @@ export default function ModelDeployDialog({
             )}
           </Typography>
         </Box>
-        
+
         {/* GPU Selection (if multiple GPUs available) */}
         {systemInfo?.gpus && systemInfo.gpus.length > 1 && (
           <Box sx={{ mb: 3 }}>
@@ -280,7 +283,7 @@ export default function ModelDeployDialog({
             </FormControl>
           </Box>
         )}
-        
+
         {/* Parallel Executions */}
         <Box sx={{ mb: 3 }}>
           <Typography id="parallel-slider" gutterBottom>
@@ -357,8 +360,8 @@ export default function ModelDeployDialog({
         <Button onClick={handleClose} disabled={isDeploying}>
           Cancel
         </Button>
-        <Button 
-          onClick={handleDeploy} 
+        <Button
+          onClick={handleDeploy}
           disabled={isDeploying}
           variant="contained"
         >

@@ -63,12 +63,30 @@ export interface Message {
   content: string;
 }
 
+export interface ModelConfig {
+  threads?: number;
+  context_size?: number;
+  gpu_layers?: number;
+  [key: string]: unknown; // Allow other properties for flexibility
+}
+
+export interface DeployedModel {
+  id: string;
+  name: string;
+  status: 'running' | 'stopped';
+  threads: number;
+  contextSize: number;
+  gpuLayers: number;
+  startedAt: string;
+}
+
 export const ollamaService = {
   // Get a list of all models
   async getModels(): Promise<Model[]> {
     try {
-      const response = await ollamaApi.get('/tags');
-      return response.data.models || [];
+      const response = await ollamaApi.get<{ models: Model[] }>('/tags');
+      const data = response.data;
+      return data.models || [];
     } catch (error) {
       console.error('Error fetching models:', error);
       throw error;
@@ -78,28 +96,50 @@ export const ollamaService = {
   // Pull a model from Ollama library
   async pullModel(name: string, onProgress?: (progress: number) => void): Promise<void> {
     try {
-      // Since Ollama API doesn't provide detailed download progress information,
-      // we'll simulate progress for better UX
-      let progress = 0;
-      const progressInterval = setInterval(() => {
-        progress += Math.random() * 5;
-        if (progress > 95) {
-          progress = 95; // Cap at 95% until actual completion
-        }
-        if (onProgress) {
-          onProgress(Math.min(Math.round(progress), 95));
-        }
-      }, 1000);
-      
-      const response = await ollamaApi.post('/pull', { name });
-      
-      // Complete progress and clear interval
-      clearInterval(progressInterval);
-      if (onProgress) {
-        onProgress(100);
+      const response = await fetch(`${getServerUrl()}/api/pull`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to pull model: ${response.statusText}`);
       }
-      
-      return response.data;
+
+      if (!response.body) {
+        throw new Error('Response body is empty');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            if (data.total && data.completed) {
+              const progress = Math.round((data.completed / data.total) * 100);
+              if (onProgress) {
+                onProgress(progress);
+              }
+            } else if (data.status === 'success') {
+              if (onProgress) {
+                onProgress(100);
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing pull progress:', e);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error pulling model:', error);
       throw error;
@@ -116,73 +156,42 @@ export const ollamaService = {
     }
   },
 
-  // Get system information
+  // Get system information from the backend service
   async getSystemInfo(): Promise<SystemInfo> {
-    // This is a mock endpoint as Ollama doesn't provide system info directly
-    // In a real implementation, you would need to create a server-side component
-    // that collects this information and exposes it via an API
-    
     try {
-      // Try to detect actual number of cores
-      const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency 
-        ? navigator.hardwareConcurrency 
-        : 8;
+      // Get the monitoring server URL from localStorage or use default
+      const monitoringServerUrl = localStorage.getItem('monitoringServerUrl') || 'http://localhost:3001';
 
-      // Simulated multi-GPU setup for demonstration
-      const gpus = [
-        {
-          id: 0,
-          name: "NVIDIA RTX 4080",
-          usage: Math.random() * 100,
-          memory: {
-            used: Math.round(Math.random() * 12),
-            total: 16
-          }
-        },
-        {
-          id: 1,
-          name: "NVIDIA RTX 4070",
-          usage: Math.random() * 100,
-          memory: {
-            used: Math.round(Math.random() * 8),
-            total: 12
-          }
-        }
-      ];
+      // Call the system-info endpoint on the monitoring server
+      const response = await axios.get(`${monitoringServerUrl}/api/system-info`);
 
-      // For now, we'll return semi-realistic data
-      return {
-        cpu: {
-          usage: Math.random() * 100,
-          cores: cores / 2,
-          threads: cores
-        },
-        memory: {
-          used: Math.round(Math.random() * 16),
-          total: 32
-        },
-        gpus: gpus
-      };
+      if (response.data) {
+        return response.data;
+      } else {
+        throw new Error('Invalid response from monitoring server');
+      }
     } catch (error) {
-      console.error("Error getting system info:", error);
-      // Fallback values
+      console.error("Error getting system info from monitoring server:", error);
+
+      // Fallback values if the server is not available
+      // This allows the UI to still function even if the monitoring server is down
       return {
         cpu: {
-          usage: Math.random() * 100,
-          cores: 8,
-          threads: 16
+          usage: 0,
+          cores: 4,
+          threads: 8
         },
         memory: {
-          used: Math.round(Math.random() * 16),
-          total: 32
+          used: 0,
+          total: 16
         },
         gpus: [{
           id: 0,
-          name: "NVIDIA GPU",
-          usage: Math.random() * 100,
+          name: "Monitoring server offline - GPU info unavailable",
+          usage: 0,
           memory: {
-            used: Math.round(Math.random() * 8),
-            total: 10
+            used: 0,
+            total: 0
           }
         }]
       };
@@ -190,41 +199,41 @@ export const ollamaService = {
   },
 
   // Create a model server (Simulate deployment since direct Ollama API doesn't support this)
-  async createModelServer(name: string, config: any): Promise<void> {
+  async createModelServer(name: string, config: ModelConfig): Promise<void> {
     try {
       // For now, we'll simulate deployment by generating a request
       // In a real implementation, this might be a call to a proxy server that
       // manages deployments or directly using Ollama's programmatic API
-      
+
       console.log(`Deploying model ${name} with config:`, config);
-      
+
       // Let's simulate a delay to make it feel like something's happening
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       // Store deployment info in localStorage for persistence between page reloads
-      const deployedModels = JSON.parse(localStorage.getItem('deployedModels') || '[]');
-      
+      const deployedModels: DeployedModel[] = JSON.parse(localStorage.getItem('deployedModels') || '[]');
+
       // Check if model is already deployed
-      const existingIndex = deployedModels.findIndex((m: any) => m.name === name);
-      
+      const existingIndex = deployedModels.findIndex((m) => m.name === name);
+
       const newDeployment = {
         id: existingIndex >= 0 ? deployedModels[existingIndex].id : Date.now().toString(),
         name,
-        status: 'running',
+        status: 'running' as const,
         threads: config.threads || 4,
         contextSize: config.context_size || 4096,
         gpuLayers: config.gpu_layers || 0,
         startedAt: new Date().toISOString()
       };
-      
+
       if (existingIndex >= 0) {
         deployedModels[existingIndex] = newDeployment;
       } else {
         deployedModels.push(newDeployment);
       }
-      
+
       localStorage.setItem('deployedModels', JSON.stringify(deployedModels));
-      
+
       // In reality, you would use the real Ollama API or a proxy server here
       return;
     } catch (error) {
@@ -237,21 +246,21 @@ export const ollamaService = {
   async stopModelServer(name: string): Promise<void> {
     try {
       console.log(`Stopping model ${name}`);
-      
+
       // Simulate a delay
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // Update deployment status in localStorage
-      const deployedModels = JSON.parse(localStorage.getItem('deployedModels') || '[]');
-      const updatedModels = deployedModels.map((model: any) => {
+      const deployedModels: DeployedModel[] = JSON.parse(localStorage.getItem('deployedModels') || '[]');
+      const updatedModels = deployedModels.map((model) => {
         if (model.name === name) {
           return { ...model, status: 'stopped' };
         }
         return model;
       });
-      
+
       localStorage.setItem('deployedModels', JSON.stringify(updatedModels));
-      
+
       // In reality, you would use the real Ollama API or a proxy server here
       return;
     } catch (error) {
@@ -259,9 +268,9 @@ export const ollamaService = {
       throw error;
     }
   },
-  
+
   // Get deployed models (from localStorage)
-  async getDeployedModels(): Promise<any[]> {
+  async getDeployedModels(): Promise<DeployedModel[]> {
     try {
       const deployedModels = JSON.parse(localStorage.getItem('deployedModels') || '[]');
       return deployedModels;
@@ -270,7 +279,7 @@ export const ollamaService = {
       return [];
     }
   },
-  
+
   // Alternative method using generate endpoint
   async generateFallback(model: string, prompt: string): Promise<string> {
     try {
@@ -278,7 +287,7 @@ export const ollamaService = {
         model,
         prompt
       });
-      
+
       if (response.data && response.data.response) {
         return response.data.response;
       }
@@ -300,18 +309,18 @@ export const ollamaService = {
       if (onUpdate) {
         // We need to simulate streaming since Ollama API doesn't support streaming via basic REST
         // But we'll use the real API for the content
-        
+
         try {
           console.log('Sending to Ollama:', { model, messages });
-          
+
           // Call Ollama's /api/chat endpoint
           const response = await ollamaApi.post('/chat', {
             model,
             messages
           });
-          
+
           console.log('Received from Ollama:', response.data);
-          
+
           // Get the response text - handle different Ollama API response formats
           if (response.data) {
             // Ollama API can return a few different formats
@@ -328,16 +337,16 @@ export const ollamaService = {
               // If we can't determine the format, stringify the response
               finalResponse = JSON.stringify(response.data);
             }
-            
+
             // Simulate streaming by incrementally revealing the response
             const chars = finalResponse.split('');
             let partialResponse = '';
-            
+
             for (const char of chars) {
               // Small random delay for natural typing effect (15-35ms)
               const delay = Math.floor(Math.random() * 20) + 15;
               await new Promise(resolve => setTimeout(resolve, delay));
-              
+
               partialResponse += char;
               onUpdate(partialResponse);
             }
@@ -348,7 +357,7 @@ export const ollamaService = {
           }
         } catch (error) {
           console.error('Error calling Ollama chat API:', error);
-          
+
           // Try using the generate endpoint as a fallback
           console.log('Trying generate endpoint as fallback...');
           try {
@@ -366,14 +375,14 @@ export const ollamaService = {
         // Non-streaming mode - direct API call
         try {
           console.log('Sending to Ollama (non-streaming):', { model, messages });
-          
+
           const response = await ollamaApi.post('/chat', {
             model,
             messages
           });
-          
+
           console.log('Received from Ollama (non-streaming):', response.data);
-          
+
           // Get the response text - handle different Ollama API response formats
           if (response.data) {
             // Ollama API can return a few different formats
@@ -395,7 +404,7 @@ export const ollamaService = {
           }
         } catch (error) {
           console.error('Error calling Ollama chat API (non-streaming):', error);
-          
+
           // Try using the generate endpoint as a fallback
           try {
             // Convert messages to a single prompt for the generate endpoint
@@ -407,7 +416,7 @@ export const ollamaService = {
           }
         }
       }
-      
+
       return {
         role: 'assistant',
         content: finalResponse

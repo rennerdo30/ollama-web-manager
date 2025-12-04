@@ -1,31 +1,34 @@
 import { ReactNode, useState } from 'react';
-import { 
-  AppBar, 
-  Box, 
-  CssBaseline, 
-  Divider, 
-  Drawer, 
-  IconButton, 
-  List, 
-  ListItem, 
-  ListItemButton, 
-  ListItemIcon, 
-  ListItemText, 
-  Toolbar, 
-  Typography 
+import {
+  AppBar,
+  Box,
+  CssBaseline,
+  Drawer,
+  IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Toolbar,
+  Typography,
+  useTheme,
+  alpha,
+  Avatar
 } from '@mui/material';
-import { 
-  Menu as MenuIcon, 
-  Dashboard as DashboardIcon, 
-  Storage as StorageIcon, 
+import {
+  Menu as MenuIcon,
+  Dashboard as DashboardIcon,
+  Storage as StorageIcon,
   Settings as SettingsIcon,
   Code as CodeIcon,
   Chat as ChatIcon,
-  Api as ApiIcon
+  Api as ApiIcon,
+  SmartToy as BotIcon
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 
-const drawerWidth = 240;
+const drawerWidth = 260;
 
 interface LayoutProps {
   children: ReactNode;
@@ -34,6 +37,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const theme = useTheme();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -49,40 +53,78 @@ export default function Layout({ children }: LayoutProps) {
   ];
 
   const drawer = (
-    <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Toolbar sx={{ px: 3, mb: 2, mt: 1 }}>
+        <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+          <BotIcon />
+        </Avatar>
+        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700 }}>
           Ollama Manager
         </Typography>
       </Toolbar>
-      <Divider />
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton 
-              component={Link} 
-              to={item.path}
-              selected={location.pathname === item.path}
-            >
-              <ListItemIcon>
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-    </div>
+      <Box sx={{ px: 2 }}>
+        <List>
+          {menuItems.map((item) => {
+            const isSelected = location.pathname === item.path;
+            return (
+              <ListItem key={item.text} disablePadding sx={{ mb: 1 }}>
+                <ListItemButton
+                  component={Link}
+                  to={item.path}
+                  selected={isSelected}
+                  sx={{
+                    borderRadius: 2,
+                    py: 1.5,
+                    px: 2,
+                    bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                    color: isSelected ? 'primary.main' : 'text.secondary',
+                    '&:hover': {
+                      bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.15) : alpha(theme.palette.text.primary, 0.05),
+                    },
+                    '&.Mui-selected': {
+                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                      '&:hover': {
+                        bgcolor: alpha(theme.palette.primary.main, 0.15),
+                      }
+                    }
+                  }}
+                >
+                  <ListItemIcon sx={{
+                    minWidth: 40,
+                    color: isSelected ? 'primary.main' : 'text.secondary'
+                  }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      fontWeight: isSelected ? 600 : 500,
+                      fontSize: '0.95rem'
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+      </Box>
+    </Box>
   );
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <CssBaseline />
+
+      {/* Mobile Header */}
       <AppBar
         position="fixed"
+        elevation={0}
         sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
+          display: { sm: 'none' },
+          bgcolor: 'background.paper',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          color: 'text.primary'
         }}
       >
         <Toolbar>
@@ -91,20 +133,22 @@ export default function Layout({ children }: LayoutProps) {
             aria-label="open drawer"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
+            sx={{ mr: 2 }}
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div">
-            Ollama Web Manager
+          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 600 }}>
+            Ollama Manager
           </Typography>
         </Toolbar>
       </AppBar>
+
       <Box
         component="nav"
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
         aria-label="navigation menu"
       >
+        {/* Mobile Drawer */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
@@ -119,22 +163,37 @@ export default function Layout({ children }: LayoutProps) {
         >
           {drawer}
         </Drawer>
+
+        {/* Desktop Sidebar */}
         <Drawer
           variant="permanent"
           sx={{
             display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: drawerWidth,
+              borderRight: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'background.paper'
+            },
           }}
           open
         >
           {drawer}
         </Drawer>
       </Box>
+
+      {/* Main Content */}
       <Box
         component="main"
-        sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${drawerWidth}px)` } }}
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          mt: { xs: 7, sm: 0 },
+          overflowX: 'hidden'
+        }}
       >
-        <Toolbar />
         {children}
       </Box>
     </Box>

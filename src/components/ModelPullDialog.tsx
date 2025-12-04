@@ -1,9 +1,9 @@
-import { 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions, 
-  Button, 
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
   TextField,
   LinearProgress,
   Typography,
@@ -19,12 +19,12 @@ interface ModelPullDialogProps {
   progress: number;
 }
 
-export default function ModelPullDialog({ 
-  open, 
-  onClose, 
-  onPull, 
+export default function ModelPullDialog({
+  open,
+  onClose,
+  onPull,
   isPulling,
-  progress 
+  progress
 }: ModelPullDialogProps) {
   const [modelName, setModelName] = useState('');
   const [error, setError] = useState('');
@@ -34,11 +34,11 @@ export default function ModelPullDialog({
       setError('Model name is required');
       return;
     }
-    
+
     setError('');
     try {
       await onPull(modelName);
-    } catch (err) {
+    } catch {
       setError('Failed to pull model. Please try again.');
     }
   };
@@ -78,9 +78,9 @@ export default function ModelPullDialog({
             <Typography variant="body2" gutterBottom>
               Pulling model: {modelName}
             </Typography>
-            <LinearProgress 
-              variant="determinate" 
-              value={progress} 
+            <LinearProgress
+              variant="determinate"
+              value={progress}
               sx={{ mb: 1, height: 10, borderRadius: 1 }}
             />
             <Typography variant="body2" color="text.secondary" align="right">
