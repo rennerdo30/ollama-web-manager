@@ -93,7 +93,11 @@ export default function ModelPullDialog({
         <Button onClick={handleClose} disabled={isPulling}>
           Cancel
         </Button>
-        <Button onClick={handlePull} disabled={isPulling || !modelName.trim()}>
+        <Button
+          onClick={handlePull}
+          disabled={isPulling || !modelName.trim()}
+          variant="contained"
+        >
           Pull
         </Button>
       </DialogActions>

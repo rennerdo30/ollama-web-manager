@@ -4,10 +4,12 @@ A modern web interface to manage your [Ollama](https://ollama.com/) instance. Th
 
 ## Features
 
-- **Dashboard**: View real-time system resources (CPU, RAM, GPU usage), monitor hardware performance, and get an overview of your Ollama instance
-- **Model Management**: Pull models from the Ollama library, delete models, and see model details
-- **Model Deployment**: Configure and deploy models with custom parameters (context size, temperature, system prompts)
-- **Settings**: Configure the application to your needs including Ollama server location and system monitoring server
+- **Dashboard**: View real-time system resources (CPU, RAM, GPU, VRAM), monitor hardware performance, and get an overview of your Ollama instance
+- **Model Management**: Pull models, inspect model details (Modelfile, parameters), and bulk delete models
+- **Model Creation**: Create custom model variants with specific system prompts and parameters
+- **Advanced Chat**: Interact with models using a clean interface with active model switching and Markdown support
+- **Model Deployment**: Configure and deploy models with custom parameters (context size, temperature) with real-time state tracking
+- **Settings**: Configure server connections and UI preferences
 
 ## Prerequisites
 

@@ -12,7 +12,7 @@ import {
     CircularProgress
 } from '@mui/material';
 import { useState, useEffect } from 'react';
-import { ollamaService } from '../api/ollamaApi';
+import { ollamaService, UserShowResponse } from '../api/ollamaApi';
 
 interface ModelDetailsDialogProps {
     open: boolean;
@@ -20,24 +20,8 @@ interface ModelDetailsDialogProps {
     modelName: string;
 }
 
-interface ModelInfo {
-    license?: string;
-    modelfile?: string;
-    parameters?: string;
-    template?: string;
-    system?: string;
-    details?: {
-        parent_model: string;
-        format: string;
-        family: string;
-        families: string[];
-        parameter_size: string;
-        quantization_level: string;
-    };
-}
-
 export default function ModelDetailsDialog({ open, onClose, modelName }: ModelDetailsDialogProps) {
-    const [info, setInfo] = useState<ModelInfo | null>(null);
+    const [info, setInfo] = useState<UserShowResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -45,6 +29,7 @@ export default function ModelDetailsDialog({ open, onClose, modelName }: ModelDe
         if (open && modelName) {
             fetchModelInfo();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, modelName]);
 
     const fetchModelInfo = async () => {

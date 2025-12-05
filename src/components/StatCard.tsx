@@ -5,12 +5,13 @@ interface StatCardProps {
   title: string;
   value: string | number;
   icon?: ReactNode;
-  subtitle?: string;
+  subtitle?: string | ReactNode;
   sx?: SxProps<Theme>;
   color?: 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error';
+  onClick?: () => void;
 }
 
-export default function StatCard({ title, value, icon, subtitle, sx, color = 'primary' }: StatCardProps) {
+export default function StatCard({ title, value, icon, subtitle, sx, color = 'primary', onClick }: StatCardProps) {
   const theme = useTheme();
 
   const getColor = (c: string) => {
@@ -30,12 +31,16 @@ export default function StatCard({ title, value, icon, subtitle, sx, color = 'pr
     <Card sx={{
       height: '100%',
       position: 'relative',
-      transition: 'box-shadow 0.2s',
+      transition: 'all 0.2s',
+      cursor: onClick ? 'pointer' : 'default',
       '&:hover': {
-        boxShadow: theme.shadows[2],
+        boxShadow: theme.shadows[4],
+        transform: onClick ? 'translateY(-4px)' : 'none'
       },
       ...sx
-    }}>
+    }}
+      onClick={onClick}
+    >
       <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
           <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>

@@ -33,6 +33,21 @@ export interface Model {
   };
 }
 
+export interface UserShowResponse {
+  license: string;
+  modelfile: string;
+  parameters: string;
+  template: string;
+  system: string;
+  details: {
+    format: string;
+    family: string;
+    families: string[] | null;
+    parameter_size: string;
+    quantization_level: string;
+  };
+}
+
 // Interface for system information
 export interface GpuInfo {
   id: number;
@@ -78,6 +93,7 @@ export interface DeployedModel {
   contextSize: number;
   gpuLayers: number;
   startedAt: string;
+  vram?: number;
 }
 
 export const ollamaService = {
@@ -157,9 +173,9 @@ export const ollamaService = {
   },
 
   // Show model information (Modelfile, parameters, etc.)
-  async showModelInfo(name: string): Promise<any> {
+  async showModelInfo(name: string): Promise<UserShowResponse> {
     try {
-      const response = await ollamaApi.post('/show', { name });
+      const response = await ollamaApi.post<UserShowResponse>('/show', { name });
       return response.data;
     } catch (error) {
       console.error('Error fetching model info:', error);
@@ -329,6 +345,25 @@ export const ollamaService = {
   // Get deployed models (from localStorage)
   async getDeployedModels(): Promise<DeployedModel[]> {
     try {
+      // Try to get real running models from Ollama
+      try {
+        const response = await ollamaApi.get<{ models: { digest: string, name: string, size_vram?: number }[] }>('/ps');
+        if (response.data && response.data.models) {
+          return response.data.models.map((m) => ({
+            id: m.digest || Date.now().toString(),
+            name: m.name,
+            status: 'running',
+            threads: 0, // Unknown from /ps
+            contextSize: 0, // Unknown from /ps
+            gpuLayers: 0, // Unknown from /ps
+            startedAt: new Date().toISOString(), // Approximate
+            vram: m.size_vram // Extra info
+          }));
+        }
+      } catch (e) {
+        console.warn('Failed to fetch running models from /api/ps, falling back to local storage', e);
+      }
+
       const deployedModels = JSON.parse(localStorage.getItem('deployedModels') || '[]');
       return deployedModels;
     } catch (error) {
@@ -342,7 +377,8 @@ export const ollamaService = {
     try {
       const response = await ollamaApi.post('/generate', {
         model,
-        prompt
+        prompt,
+        stream: false
       });
 
       if (response.data && response.data.response) {
@@ -373,7 +409,8 @@ export const ollamaService = {
           // Call Ollama's /api/chat endpoint
           const response = await ollamaApi.post('/chat', {
             model,
-            messages
+            messages,
+            stream: false
           });
 
           console.log('Received from Ollama:', response.data);
@@ -435,7 +472,8 @@ export const ollamaService = {
 
           const response = await ollamaApi.post('/chat', {
             model,
-            messages
+            messages,
+            stream: false
           });
 
           console.log('Received from Ollama (non-streaming):', response.data);

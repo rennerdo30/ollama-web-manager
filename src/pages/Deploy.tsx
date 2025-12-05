@@ -31,18 +31,10 @@ import {
 } from '@mui/icons-material';
 import LoadingState from '../components/LoadingState';
 import ModelDeployDialog from '../components/ModelDeployDialog';
-import { ollamaService, Model, ModelConfig } from '../api/ollamaApi';
+import { ollamaService, Model, ModelConfig, DeployedModel } from '../api/ollamaApi';
 
 // Note: This is a mock interface since Ollama doesn't provide active models directly
-interface DeployedModel {
-  id: string;
-  name: string;
-  status: 'running' | 'stopped';
-  threads: number;
-  contextSize: number;
-  gpuLayers: number;
-  startedAt: string;
-}
+// interface DeployedModel { ... } removed to use shared interface
 
 export default function Deploy() {
   const [models, setModels] = useState<Model[]>([]);
@@ -259,25 +251,50 @@ export default function Deploy() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Tooltip title="Threads">
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                            <SpeedIcon sx={{ fontSize: 16 }} />
-                            <Typography variant="caption">{model.threads}</Typography>
-                          </Box>
-                        </Tooltip>
-                        <Tooltip title="Context Size">
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                            <MemoryIcon sx={{ fontSize: 16 }} />
-                            <Typography variant="caption">{model.contextSize}</Typography>
-                          </Box>
-                        </Tooltip>
-                        <Tooltip title="GPU Layers">
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                            <LayersIcon sx={{ fontSize: 16 }} />
-                            <Typography variant="caption">{model.gpuLayers}</Typography>
-                          </Box>
-                        </Tooltip>
+                      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                        {model.vram ? (
+                          <Tooltip title="VRAM Usage">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                              <MemoryIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                              <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                                {(model.vram / (1024 * 1024 * 1024)).toFixed(2)} GB
+                              </Typography>
+                            </Box>
+                          </Tooltip>
+                        ) : null}
+
+                        {model.threads > 0 && (
+                          <Tooltip title="Threads">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                              <SpeedIcon sx={{ fontSize: 16 }} />
+                              <Typography variant="caption">{model.threads}</Typography>
+                            </Box>
+                          </Tooltip>
+                        )}
+
+                        {model.contextSize > 0 && (
+                          <Tooltip title="Context Size">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                              <MemoryIcon sx={{ fontSize: 16 }} />
+                              <Typography variant="caption">{model.contextSize}</Typography>
+                            </Box>
+                          </Tooltip>
+                        )}
+
+                        {model.gpuLayers > 0 && (
+                          <Tooltip title="GPU Layers">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                              <LayersIcon sx={{ fontSize: 16 }} />
+                              <Typography variant="caption">{model.gpuLayers}</Typography>
+                            </Box>
+                          </Tooltip>
+                        )}
+
+                        {!model.vram && model.threads === 0 && (
+                          <Typography variant="caption" color="text.secondary">
+                            External Deployment
+                          </Typography>
+                        )}
                       </Box>
                     </TableCell>
                     <TableCell>

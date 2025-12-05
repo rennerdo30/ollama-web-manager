@@ -10,7 +10,9 @@ import {
   MenuItem,
   IconButton,
   Avatar,
-  CircularProgress
+  CircularProgress,
+  Button,
+  useTheme
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -23,6 +25,7 @@ import LoadingState from '../components/LoadingState';
 import ReactMarkdown from 'react-markdown';
 
 export default function Chat() {
+  const theme = useTheme();
   const [models, setModels] = useState<Model[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -116,28 +119,56 @@ export default function Chat() {
 
   return (
     <Box sx={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>Chat</Typography>
           <Typography variant="body2" color="text.secondary">
             Interact with your local LLMs
           </Typography>
         </Box>
-        <FormControl sx={{ minWidth: 200 }} size="small">
-          <InputLabel>Select Model</InputLabel>
-          <Select
-            value={selectedModel}
-            label="Select Model"
-            onChange={(e) => setSelectedModel(e.target.value)}
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Button
+            variant="outlined"
+            color="error"
+            size="small"
+            onClick={() => setMessages([])}
+            disabled={messages.length === 0}
             sx={{ borderRadius: 2 }}
           >
-            {models.map((model) => (
-              <MenuItem key={model.name} value={model.name}>
-                {model.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+            Clear Chat
+          </Button>
+          <FormControl sx={{ minWidth: 250 }} size="small">
+            <InputLabel id="model-select-label" sx={{ color: 'primary.main', fontWeight: 600 }}>
+              Active Model
+            </InputLabel>
+            <Select
+              labelId="model-select-label"
+              value={selectedModel}
+              label="Active Model"
+              onChange={(e) => setSelectedModel(e.target.value)}
+              sx={{
+                borderRadius: 2,
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'primary.main',
+                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                '&:hover': { bgcolor: 'action.hover' },
+                boxShadow: theme.shadows[2],
+                fontWeight: 600,
+                color: 'primary.main'
+              }}
+            >
+              {models.map((model) => (
+                <MenuItem key={model.name} value={model.name}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <BotIcon fontSize="small" color="primary" />
+                    {model.name}
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
       </Box>
 
       <Paper

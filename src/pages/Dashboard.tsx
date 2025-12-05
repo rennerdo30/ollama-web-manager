@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Grid,
   Typography,
@@ -39,6 +40,7 @@ ChartJS.register(
 );
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,7 +191,7 @@ export default function Dashboard() {
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="CPU Usage"
-            value={`${systemInfo?.cpu.usage.toFixed(1)}%`}
+            value={`${systemInfo?.cpu.usage}%`}
             subtitle={`${systemInfo?.cpu.cores} cores / ${systemInfo?.cpu.threads} threads`}
             icon={<SpeedIcon fontSize="medium" />}
             color="primary"
@@ -210,8 +212,18 @@ export default function Dashboard() {
           <Grid item xs={12} sm={6} md={3} key={`gpu-${index}`}>
             <StatCard
               title={`GPU ${index + 1}`}
-              value={`${gpu.usage.toFixed(1)}%`}
-              subtitle={`${gpu.name}`}
+              value={`${gpu.usage}%`}
+              subtitle={
+                <Box component="span">
+                  {gpu.name}
+                  {gpu.memory.total > 0 && (
+                    <>
+                      <br />
+                      {gpu.memory.used}/{gpu.memory.total} GB VRAM
+                    </>
+                  )}
+                </Box>
+              }
               icon={<ViewModuleIcon fontSize="medium" />}
               color="success"
             />
@@ -225,6 +237,7 @@ export default function Dashboard() {
             subtitle="Ready to deploy"
             icon={<StorageIcon fontSize="medium" />}
             color="info"
+            onClick={() => navigate('/models')}
           />
         </Grid>
 

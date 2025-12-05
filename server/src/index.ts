@@ -31,15 +31,16 @@ app.get('/api/system-info', async (req, res) => {
     // Format GPU data
     const gpus: GpuInfo[] = gpuData.controllers.map((controller, index) => {
       // Get GPU memory in GB (with fallback if not available)
-      const totalMemoryGB = controller.memoryTotal 
-        ? Math.round(controller.memoryTotal / 1024) 
-        : 4; // Fallback value
-      
+      const totalMemoryGB = controller.memoryTotal
+        ? parseFloat((controller.memoryTotal / 1024).toFixed(1))
+        : 0;
+
       // Estimate used memory (not directly available in all systems)
-      const usedMemoryGB = controller.memoryUsed 
-        ? Math.round(controller.memoryUsed / 1024)
-        : Math.round(totalMemoryGB * 0.3); // Fallback estimate
-      
+      // On macOS, this is often hard to get without native bindings
+      const usedMemoryGB = controller.memoryUsed
+        ? parseFloat((controller.memoryUsed / 1024).toFixed(1))
+        : 0;
+
       return {
         id: index,
         name: controller.name || 'Unknown GPU',
@@ -67,13 +68,13 @@ app.get('/api/system-info', async (req, res) => {
     // Build the system info response
     const systemInfo: SystemInfo = {
       cpu: {
-        usage: currentLoad.currentLoad || 0,
+        usage: parseFloat(currentLoad.currentLoad.toFixed(1)),
         cores: cpuData.physicalCores || 4,
         threads: cpuData.cores || 8
       },
       memory: {
-        used: Math.round(memData.used / (1024 * 1024 * 1024)), // Convert to GB
-        total: Math.round(memData.total / (1024 * 1024 * 1024)) // Convert to GB
+        used: parseFloat((memData.used / (1024 * 1024 * 1024)).toFixed(2)), // Convert to GB with 2 decimals
+        total: parseFloat((memData.total / (1024 * 1024 * 1024)).toFixed(2)) // Convert to GB with 2 decimals
       },
       gpus: gpus
     };
