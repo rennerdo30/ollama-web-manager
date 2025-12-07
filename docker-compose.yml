@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=/api
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      args:
+        # Pass the server directory context if needed, but here we copy . in Dockerfile
+        # and base context is root, so we handle correct paths in Dockerfile.
+        # Actually, Dockerfile.backend copies . (root) but creates a huge context.
+        # Efficient way: context: server
+        # Let's check Dockerfile.backend again. It copies . (root). That works but is slow.
+        # Better: context: server, copy . .
+        # BUT: server package.json might need root logic? No, server is standalone.
+        # Let's keep context . for simplicity as per Dockerfile.backend
+        pass: true
+    environment:
+      - PORT=3001
+    restart: unless-stopped
+
+# Note on Ollama:
+# This setup assumes Ollama is running on the HOST machine.
+# To allow containers to access the host localhost, utilize 'host.docker.internal' (Mac/Windows)
+# or the host IP (Linux).
+# The user will configure the Ollama connection in the UI.

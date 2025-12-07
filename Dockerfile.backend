@@ -1,0 +1,20 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy server package.json and install dependencies
+# Note: We assume the build context is the project root
+COPY server/package*.json ./
+RUN npm install
+
+# Copy server source code
+COPY server/ .
+
+# Build the TypeScript code
+RUN npm run build
+
+# Expose the monitoring port
+EXPOSE 3001
+
+# Start the server
+CMD ["npm", "start"]

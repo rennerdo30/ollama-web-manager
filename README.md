@@ -76,6 +76,25 @@ npx serve
 
 > **Note**: For a production deployment, you may want to use tools like PM2 to manage the monitoring server process.
 
+## Docker Deployment (Recommended)
+
+You can easily deploy the entire stack using Docker Compose.
+
+1.  Make sure you have Docker and Docker Compose installed.
+2.  Run the following command:
+    ```bash
+    docker-compose up -d --build
+    ```
+3.  Access the application at `http://localhost:8080`.
+
+**Note on Ollama Connection**:
+Since the application runs inside a container, `localhost` refers to the container itself. To connect to your Ollama instance running on the host machine:
+-   **Mac/Windows**: Use `http://host.docker.internal:11434` as the Ollama URL in Settings.
+-   **Linux**: Use `http://172.17.0.1:11434` (or your host IP).
+
+**Note on System Stats**:
+The "System Health" stats (CPU, RAM) displayed in the dashboard will reflect the *Docker container's* resources, not the host machine's entire system stats. This is a known limitation of running in a container without privileged access.
+
 ## Usage
 
 1. Make sure your Ollama instance is running (typically on port 11434)
