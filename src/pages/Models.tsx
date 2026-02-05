@@ -33,20 +33,19 @@ export default function Models() {
 
   const fetchModels = async () => {
     try {
-      setLoading(true);
       const data = await ollamaService.getModels();
       setModels(data);
       setError('');
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching models:', err);
       setError('Failed to fetch models. Please check if Ollama is running.');
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchModels();
+    void fetchModels();
   }, []);
 
   const handleOpenPullDialog = () => {
