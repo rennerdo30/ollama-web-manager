@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import {
   Grid as MuiGrid,
   Typography,
@@ -36,7 +37,8 @@ import { ollamaService, Model, ModelConfig, DeployedModel } from '../api/ollamaA
 // Note: This is a mock interface since Ollama doesn't provide active models directly
 // interface DeployedModel { ... } removed to use shared interface
 
-const Grid = MuiGrid as any;
+type GridShimProps = { children?: ReactNode } & Record<string, unknown>;
+const Grid = MuiGrid as unknown as ComponentType<GridShimProps>;
 
 export default function Deploy() {
   const [models, setModels] = useState<Model[]>([]);
