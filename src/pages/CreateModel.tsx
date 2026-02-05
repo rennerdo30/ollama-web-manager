@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import Grid from '@mui/material/Grid2';
 import {
+    Grid as MuiGrid,
     Box,
     Typography,
     Paper,
@@ -21,6 +21,8 @@ import {
 } from '@mui/icons-material';
 import { ollamaService, Model } from '../api/ollamaApi';
 import { useNavigate } from 'react-router-dom';
+
+const Grid = MuiGrid as any;
 
 export default function CreateModel() {
     const [models, setModels] = useState<Model[]>([]);
