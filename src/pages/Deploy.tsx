@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import Grid from '@mui/material/GridLegacy';
 import {
+  Grid,
   Typography,
   Box,
   Paper,
@@ -372,7 +372,7 @@ export default function Deploy() {
       <Grid container spacing={3}>
         {models.length > 0 ? (
           models.map((model) => (
-            <Grid item xs={12} sm={6} md={3} key={model.name}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={model.name}>
               <Paper sx={{
                 p: 2.5,
                 height: '100%',
@@ -421,7 +421,7 @@ export default function Deploy() {
             </Grid>
           ))
         ) : (
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2, border: '1px dashed', borderColor: 'divider' }}>
               <Typography color="text.secondary">
                 No models available to deploy. Go to the Models page to pull models.
