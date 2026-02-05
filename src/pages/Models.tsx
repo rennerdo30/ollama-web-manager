@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import Grid from '@mui/material/GridLegacy';
 import {
-  Grid,
   Typography,
   Box,
   Button,
