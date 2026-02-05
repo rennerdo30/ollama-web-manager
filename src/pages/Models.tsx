@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import {
   Grid as MuiGrid,
   Typography,
@@ -17,7 +18,8 @@ import ModelDeployDialog from '../components/ModelDeployDialog';
 import ModelDetailsDialog from '../components/ModelDetailsDialog';
 import { ollamaService, Model, ModelConfig } from '../api/ollamaApi';
 
-const Grid = MuiGrid as any;
+type GridShimProps = { children?: ReactNode } & Record<string, unknown>;
+const Grid = MuiGrid as unknown as ComponentType<GridShimProps>;
 
 export default function Models() {
   const [models, setModels] = useState<Model[]>([]);
