@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import {
     Grid as MuiGrid,
     Box,
@@ -22,7 +23,8 @@ import {
 import { ollamaService, Model } from '../api/ollamaApi';
 import { useNavigate } from 'react-router-dom';
 
-const Grid = MuiGrid as any;
+type GridShimProps = { children?: ReactNode } & Record<string, unknown>;
+const Grid = MuiGrid as unknown as ComponentType<GridShimProps>;
 
 export default function CreateModel() {
     const [models, setModels] = useState<Model[]>([]);
