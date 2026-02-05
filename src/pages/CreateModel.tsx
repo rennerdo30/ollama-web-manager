@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import Grid from '@mui/material/GridLegacy';
 import {
+    Grid,
     Box,
     Typography,
     Paper,
@@ -137,7 +137,7 @@ export default function CreateModel() {
             )}
 
             <Grid container spacing={3}>
-                <Grid item xs={12} md={7}>
+                <Grid size={{ xs: 12, md: 7 }}>
                     <Paper sx={{ p: 3, borderRadius: 3 }} elevation={0}>
                         <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                             <MagicIcon color="primary" />
@@ -145,7 +145,7 @@ export default function CreateModel() {
                         </Typography>
 
                         <Grid container spacing={3}>
-                            <Grid item xs={12}>
+                            <Grid size={12}>
                                 <TextField
                                     fullWidth
                                     label="New Model Name"
@@ -157,7 +157,7 @@ export default function CreateModel() {
                                 />
                             </Grid>
 
-                            <Grid item xs={12}>
+                            <Grid size={12}>
                                 <TextField
                                     select
                                     fullWidth
@@ -175,7 +175,7 @@ export default function CreateModel() {
                                 </TextField>
                             </Grid>
 
-                            <Grid item xs={12}>
+                            <Grid size={12}>
                                 <TextField
                                     fullWidth
                                     multiline
@@ -189,7 +189,7 @@ export default function CreateModel() {
                                 />
                             </Grid>
 
-                            <Grid item xs={12} sm={6}>
+                            <Grid size={{ xs: 12, sm: 6 }}>
                                 <TextField
                                     fullWidth
                                     type="number"
@@ -202,7 +202,7 @@ export default function CreateModel() {
                                 />
                             </Grid>
 
-                            <Grid item xs={12} sm={6}>
+                            <Grid size={{ xs: 12, sm: 6 }}>
                                 <TextField
                                     fullWidth
                                     type="number"
@@ -214,7 +214,7 @@ export default function CreateModel() {
                                 />
                             </Grid>
 
-                            <Grid item xs={12}>
+                            <Grid size={12}>
                                 <Button
                                     variant="contained"
                                     size="large"
@@ -237,7 +237,7 @@ export default function CreateModel() {
                     </Paper>
                 </Grid>
 
-                <Grid item xs={12} md={5}>
+                <Grid size={{ xs: 12, md: 5 }}>
                     <Paper sx={{ p: 3, borderRadius: 3, height: '100%', bgcolor: 'action.hover' }} elevation={0}>
                         <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                             <CodeIcon color="secondary" />
