@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import Grid from '@mui/material/Grid2';
 import {
+  Grid as MuiGrid,
   Typography,
   Box,
   Paper,
@@ -35,6 +35,8 @@ import { ollamaService, Model, ModelConfig, DeployedModel } from '../api/ollamaA
 
 // Note: This is a mock interface since Ollama doesn't provide active models directly
 // interface DeployedModel { ... } removed to use shared interface
+
+const Grid = MuiGrid as any;
 
 export default function Deploy() {
   const [models, setModels] = useState<Model[]>([]);
