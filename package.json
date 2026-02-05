@@ -17,7 +17,7 @@
     "@mui/icons-material": "^5.15.10",
     "@mui/material": "^5.15.10",
     "axios": "^1.13.4",
-    "chart.js": "^4.4.1",
+    "chart.js": "^4.5.1",
     "react": "^19.2.4",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^19.0.0",
