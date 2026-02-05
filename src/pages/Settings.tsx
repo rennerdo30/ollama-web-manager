@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Typography,
@@ -31,21 +31,25 @@ export default function Settings() {
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
-  // Update API URL when serverUrl changes
-  useEffect(() => {
-    // This could be expanded to actually update the API client
-    localStorage.setItem('serverUrl', serverUrl);
-  }, [serverUrl]);
-
   const handleSaveSettings = () => {
+    const normalizedServerUrl = serverUrl.trim().replace(/\/+$/, '');
+    const normalizedMonitoringServerUrl = monitoringServerUrl.trim().replace(/\/+$/, '');
+    const parsedRefreshInterval = Number.isFinite(refreshInterval) && refreshInterval > 0
+      ? Math.min(60, Math.max(1, Math.round(refreshInterval)))
+      : 5;
+
+    setServerUrl(normalizedServerUrl);
+    setMonitoringServerUrl(normalizedMonitoringServerUrl);
+    setRefreshInterval(parsedRefreshInterval);
+
     // Save settings to localStorage
-    localStorage.setItem('serverUrl', serverUrl);
-    localStorage.setItem('monitoringServerUrl', monitoringServerUrl);
+    localStorage.setItem('serverUrl', normalizedServerUrl);
+    localStorage.setItem('monitoringServerUrl', normalizedMonitoringServerUrl);
     localStorage.setItem('autoRefresh', String(autoRefresh));
-    localStorage.setItem('refreshInterval', String(refreshInterval));
+    localStorage.setItem('refreshInterval', String(parsedRefreshInterval));
 
     // Update API base URL
-    updateApiBaseUrl(serverUrl);
+    updateApiBaseUrl(normalizedServerUrl);
 
     setSnackbar({
       open: true,

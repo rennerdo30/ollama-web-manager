@@ -63,6 +63,7 @@ export default function Deploy() {
       // Fetch deployed models (mock)
       const deployedData = await fetchDeployedModels();
       setDeployedModels(deployedData);
+      setError('');
 
       setLoading(false);
     } catch (err) {
@@ -96,10 +97,13 @@ export default function Deploy() {
   const handleDeployModel = async (config: ModelConfig) => {
     try {
       setIsDeploying(true);
+      const resolvedContextSize = typeof config.contextSize === 'number'
+        ? config.contextSize
+        : config.context_size;
 
       await ollamaService.createModelServer(config.name as string, {
         threads: config.threads as number,
-        context_size: config.contextSize as number,
+        context_size: resolvedContextSize as number,
         gpu_layers: config.gpu_layers as number,
         temperature: config.temperature as number,
         system_prompt: config.system_prompt as string

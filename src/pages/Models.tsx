@@ -36,6 +36,7 @@ export default function Models() {
       setLoading(true);
       const data = await ollamaService.getModels();
       setModels(data);
+      setError('');
       setLoading(false);
     } catch (err) {
       console.error('Error fetching models:', err);
@@ -114,10 +115,13 @@ export default function Models() {
   const handleDeployModel = async (config: ModelConfig) => {
     try {
       setIsDeploying(true);
+      const resolvedContextSize = typeof config.contextSize === 'number'
+        ? config.contextSize
+        : config.context_size;
 
       await ollamaService.createModelServer(config.name as string, {
         threads: config.threads as number,
-        context_size: config.contextSize as number,
+        context_size: resolvedContextSize as number,
         gpu_layers: config.gpu_layers as number,
         temperature: config.temperature as number,
         system_prompt: config.system_prompt as string
@@ -296,8 +300,8 @@ export default function Models() {
 
       <Grid container spacing={3}>
         {models.length > 0 ? (
-          models.map((model, index) => (
-            <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
+          models.map((model) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={model.name}>
               <Box sx={{ height: '100%' }}>
                 <ModelCard
                   model={model}

@@ -28,6 +28,22 @@ interface ModelDeployDialogProps {
   model: Model | null;
 }
 
+interface DeployFormConfig {
+  threads: number;
+  contextSize: number;
+  gpu_layers: number;
+  temperature: number;
+  system_prompt: string;
+  parallel_executions: number;
+  selected_gpus: number[];
+}
+
+const isPlaceholderGpu = (name: string) => {
+  const normalizedName = name.toLowerCase();
+  return normalizedName.includes('no dedicated gpu detected') ||
+    normalizedName.includes('monitoring server offline');
+};
+
 export default function ModelDeployDialog({
   open,
   onClose,
@@ -35,12 +51,12 @@ export default function ModelDeployDialog({
   isDeploying,
   model
 }: ModelDeployDialogProps) {
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState<DeployFormConfig>({
     threads: 4,
     contextSize: 4096,
     gpu_layers: 0,
     temperature: 0.7,
-    system_prompt: "",
+    system_prompt: '',
     parallel_executions: 1,
     selected_gpus: [0] // Default to first GPU
   });
@@ -50,10 +66,11 @@ export default function ModelDeployDialog({
 
   // Recommended context sizes based on model size (parameters)
   const recommendedContextSizes: { [key: string]: number } = {
-    "7b": 4096,
-    "13b": 4096,
-    "34b": 8192,
-    "70b": 8192
+    '7': 4096,
+    '8': 4096,
+    '13': 4096,
+    '34': 8192,
+    '70': 8192
   };
 
   // Function to fetch system information
@@ -77,9 +94,11 @@ export default function ModelDeployDialog({
 
   useEffect(() => {
     if (model && systemInfo) {
+      const availableGpus = systemInfo.gpus.filter((gpu) => !isPlaceholderGpu(gpu.name));
+
       // Get model size from name (e.g., llama2:7b -> 7b)
-      const modelSizeMatch = model.name.match(/(\d+)b/i);
-      const modelSize = modelSizeMatch ? modelSizeMatch[1].toLowerCase() : null;
+      const modelSizeMatch = model.name.match(/(\d+)\s*b/i);
+      const modelSize = modelSizeMatch ? modelSizeMatch[1] : null;
 
       // Set recommended context size based on model size
       const recommendedContext = modelSize && recommendedContextSizes[modelSize]
@@ -98,7 +117,7 @@ export default function ModelDeployDialog({
 
       if (systemInfo.gpus && systemInfo.gpus.length > 0) {
         // Simple formula: If we have a GPU, use it for all layers
-        recommendedGpuLayers = 100; // 100 means all layers
+        recommendedGpuLayers = availableGpus.length > 0 ? 100 : 0;
       }
 
       // Reset config with recommended values
@@ -107,10 +126,10 @@ export default function ModelDeployDialog({
         contextSize: recommendedContext,
         gpu_layers: recommendedGpuLayers,
         temperature: 0.7,
-        system_prompt: "",
+        system_prompt: '',
         parallel_executions: 1,
-        selected_gpus: systemInfo.gpus && systemInfo.gpus.length > 0
-          ? [0] // Default to the first GPU
+        selected_gpus: availableGpus.length > 0
+          ? [availableGpus[0].id]
           : []
       });
     }
@@ -140,16 +159,26 @@ export default function ModelDeployDialog({
     }
   };
 
-  const handleChange = (field: string, value: number | string | number[]) => {
+  const handleChange = <K extends keyof DeployFormConfig>(
+    field: K,
+    value: DeployFormConfig[K]
+  ) => {
     setConfig(prev => ({
       ...prev,
       [field]: value
     }));
   };
 
+  const normalizeSliderValue = (value: number | number[]) => {
+    return Array.isArray(value) ? value[0] : value;
+  };
+
   if (!model) {
     return null;
   }
+
+  const availableGpus = systemInfo?.gpus.filter((gpu) => !isPlaceholderGpu(gpu.name)) || [];
+  const hasAvailableGpu = availableGpus.length > 0;
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
@@ -181,12 +210,12 @@ export default function ModelDeployDialog({
               { value: systemInfo?.cpu.threads ? Math.floor(systemInfo.cpu.threads / 2) : 4, label: 'Half' },
               { value: systemInfo?.cpu.threads || 8, label: 'Max' }
             ]}
-            onChange={(_, value) => handleChange('threads', value)}
+            onChange={(_, value) => handleChange('threads', normalizeSliderValue(value))}
             aria-labelledby="threads-slider"
             valueLabelDisplay="auto"
             disabled={isDeploying}
           />
-          <Typography variant="body2" color="text.secondary">
+          <Typography component="div" variant="body2" color="text.secondary">
             Number of CPU threads to use for inference
             {systemInfo && (
               <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
@@ -211,7 +240,7 @@ export default function ModelDeployDialog({
               { value: 8192, label: '8K' },
               { value: 16384, label: '16K' }
             ]}
-            onChange={(_, value) => handleChange('contextSize', value)}
+            onChange={(_, value) => handleChange('contextSize', normalizeSliderValue(value))}
             aria-labelledby="context-slider"
             valueLabelDisplay="auto"
             disabled={isDeploying}
@@ -230,19 +259,19 @@ export default function ModelDeployDialog({
             min={0}
             max={100}
             step={1}
-            onChange={(_, value) => handleChange('gpu_layers', value)}
+            onChange={(_, value) => handleChange('gpu_layers', normalizeSliderValue(value))}
             aria-labelledby="gpu-layers-slider"
             valueLabelDisplay="auto"
-            disabled={isDeploying || (systemInfo?.gpus && systemInfo.gpus.length === 0)}
+            disabled={isDeploying || !hasAvailableGpu}
             marks={[
               { value: 0, label: 'CPU' },
               { value: 50, label: '50%' },
               { value: 100, label: 'All' }
             ]}
           />
-          <Typography variant="body2" color="text.secondary">
+          <Typography component="div" variant="body2" color="text.secondary">
             Number of layers to offload to GPU (0 = CPU only)
-            {systemInfo?.gpus && systemInfo.gpus.length === 0 && (
+            {!hasAvailableGpu && (
               <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
                 No GPUs detected. Model will run on CPU only.
               </Typography>
@@ -251,7 +280,7 @@ export default function ModelDeployDialog({
         </Box>
 
         {/* GPU Selection (if multiple GPUs available) */}
-        {systemInfo?.gpus && systemInfo.gpus.length > 1 && (
+        {availableGpus.length > 1 && (
           <Box sx={{ mb: 3 }}>
             <Typography gutterBottom>
               GPUs to Use
@@ -262,16 +291,19 @@ export default function ModelDeployDialog({
                 labelId="gpu-select-label"
                 multiple
                 value={config.selected_gpus}
-                onChange={(e) => handleChange('selected_gpus', e.target.value as number[])}
+                onChange={(e) => {
+                  const selected = e.target.value as (string | number)[];
+                  handleChange('selected_gpus', selected.map((gpuId) => Number(gpuId)));
+                }}
                 disabled={isDeploying || config.gpu_layers === 0}
                 renderValue={(selected) => {
                   return selected.map(gpuId => {
-                    const gpu = systemInfo.gpus.find(g => g.id === gpuId);
+                    const gpu = availableGpus.find(g => g.id === gpuId);
                     return gpu ? gpu.name : `GPU ${gpuId}`;
                   }).join(', ');
                 }}
               >
-                {systemInfo.gpus.map((gpu) => (
+                {availableGpus.map((gpu) => (
                   <MenuItem key={gpu.id} value={gpu.id}>
                     {gpu.name} ({gpu.memory.used}/{gpu.memory.total} GB used)
                   </MenuItem>
@@ -299,7 +331,7 @@ export default function ModelDeployDialog({
               { value: 4, label: '4' },
               { value: 8, label: '8' }
             ]}
-            onChange={(_, value) => handleChange('parallel_executions', value)}
+            onChange={(_, value) => handleChange('parallel_executions', normalizeSliderValue(value))}
             aria-labelledby="parallel-slider"
             valueLabelDisplay="auto"
             disabled={isDeploying}
@@ -329,7 +361,7 @@ export default function ModelDeployDialog({
               { value: 1, label: '1' },
               { value: 2, label: '2' }
             ]}
-            onChange={(_, value) => handleChange('temperature', value)}
+            onChange={(_, value) => handleChange('temperature', normalizeSliderValue(value))}
             aria-labelledby="temperature-slider"
             valueLabelDisplay="auto"
             disabled={isDeploying}

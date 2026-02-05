@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const theme = useTheme();
+  const defaultRefreshIntervalSeconds = 5;
 
   // Data for CPU usage chart
   const [cpuData, setCpuData] = useState({
@@ -94,35 +95,76 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
+    setCpuData((prev) => ({
+      ...prev,
+      datasets: [
+        {
+          ...prev.datasets[0],
+          borderColor: theme.palette.primary.main,
+          backgroundColor: theme.palette.primary.light
+        }
+      ]
+    }));
+
+    setMemoryData((prev) => ({
+      ...prev,
+      datasets: [
+        {
+          ...prev.datasets[0],
+          borderColor: theme.palette.secondary.main,
+          backgroundColor: theme.palette.secondary.light
+        }
+      ]
+    }));
+  }, [theme.palette.primary.light, theme.palette.primary.main, theme.palette.secondary.light, theme.palette.secondary.main]);
+
+  useEffect(() => {
+    const fetchData = async (showLoading = false) => {
+      if (showLoading) {
         setLoading(true);
+      }
 
-        // Fetch models
-        const modelsData = await ollamaService.getModels();
-        setModels(modelsData);
+      try {
+        const [modelsData, systemInfoData] = await Promise.all([
+          ollamaService.getModels(),
+          ollamaService.getSystemInfo()
+        ]);
 
-        // Fetch system info
-        const systemInfoData = await ollamaService.getSystemInfo();
         setSystemInfo(systemInfoData);
+        setModels(modelsData);
+        setError('');
 
         // Update charts
         updateCharts(systemInfoData);
-
-        setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
         setError('Failed to fetch data. Please check if Ollama is running.');
-        setLoading(false);
+      } finally {
+        if (showLoading) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchData();
+    fetchData(true);
+
+    const autoRefreshEnabled = localStorage.getItem('autoRefresh') !== 'false';
+    const rawInterval = Number.parseInt(
+      localStorage.getItem('refreshInterval') || String(defaultRefreshIntervalSeconds),
+      10
+    );
+    const normalizedInterval = Number.isFinite(rawInterval) && rawInterval > 0
+      ? rawInterval
+      : defaultRefreshIntervalSeconds;
+
+    if (!autoRefreshEnabled) {
+      return;
+    }
 
     // Set up interval to refresh data
     const intervalId = setInterval(() => {
       fetchData();
-    }, 5000);
+    }, normalizedInterval * 1000);
 
     return () => clearInterval(intervalId);
   }, []);

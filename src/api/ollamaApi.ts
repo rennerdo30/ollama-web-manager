@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, '');
+
 // Get server URL from localStorage or use default
 const getServerUrl = () => {
-  return localStorage.getItem('serverUrl') || 'http://localhost:11434';
+  const storedUrl = localStorage.getItem('serverUrl') || 'http://localhost:11434';
+  return normalizeBaseUrl(storedUrl);
 };
 
 // Create axios instance with dynamic base URL
@@ -15,7 +18,61 @@ const ollamaApi = axios.create({
 
 // Update baseURL when serverUrl changes
 export const updateApiBaseUrl = (newUrl: string) => {
-  ollamaApi.defaults.baseURL = `${newUrl}/api`;
+  ollamaApi.defaults.baseURL = `${normalizeBaseUrl(newUrl)}/api`;
+};
+
+const parseStreamedJson = async <T>(
+  response: Response,
+  onChunkData: (data: T) => void
+) => {
+  if (!response.body) {
+    throw new Error('Response body is empty');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (value) {
+      buffer += decoder.decode(value, { stream: !done });
+    }
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) {
+        continue;
+      }
+
+      try {
+        const data = JSON.parse(line) as T;
+        onChunkData(data);
+      } catch (error) {
+        console.error('Error parsing streamed JSON line:', error, line);
+      }
+    }
+
+    if (done) {
+      break;
+    }
+  }
+
+  const finalLine = buffer.trim();
+  if (!finalLine) {
+    return;
+  }
+
+  try {
+    const data = JSON.parse(finalLine) as T;
+    onChunkData(data);
+  } catch (error) {
+    console.error('Error parsing final streamed JSON line:', error, finalLine);
+  }
 };
 
 // Interface for model details
@@ -79,9 +136,15 @@ export interface Message {
 }
 
 export interface ModelConfig {
+  name?: string;
   threads?: number;
   context_size?: number;
+  contextSize?: number;
   gpu_layers?: number;
+  temperature?: number;
+  system_prompt?: string;
+  parallel_executions?: number;
+  selected_gpus?: number[];
   [key: string]: unknown; // Allow other properties for flexibility
 }
 
@@ -124,38 +187,20 @@ export const ollamaService = {
         throw new Error(`Failed to pull model: ${response.statusText}`);
       }
 
-      if (!response.body) {
-        throw new Error('Response body is empty');
-      }
+      await parseStreamedJson<{ total?: number; completed?: number; status?: string }>(
+        response,
+        (data) => {
+          if (typeof data.total === 'number' && typeof data.completed === 'number' && data.total > 0) {
+            const progress = Math.round((data.completed / data.total) * 100);
+            onProgress?.(progress);
+            return;
+          }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-        for (const line of lines) {
-          try {
-            const data = JSON.parse(line);
-            if (data.total && data.completed) {
-              const progress = Math.round((data.completed / data.total) * 100);
-              if (onProgress) {
-                onProgress(progress);
-              }
-            } else if (data.status === 'success') {
-              if (onProgress) {
-                onProgress(100);
-              }
-            }
-          } catch (e) {
-            console.error('Error parsing pull progress:', e);
+          if (data.status === 'success') {
+            onProgress?.(100);
           }
         }
-      }
+      );
     } catch (error) {
       console.error('Error pulling model:', error);
       throw error;
@@ -198,31 +243,11 @@ export const ollamaService = {
         throw new Error(`Failed to create model: ${response.statusText}`);
       }
 
-      if (!response.body) {
-        throw new Error('Response body is empty');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-        for (const line of lines) {
-          try {
-            const data = JSON.parse(line);
-            if (data.status && onProgress) {
-              onProgress(data.status);
-            }
-          } catch (e) {
-            console.error('Error parsing create progress:', e);
-          }
+      await parseStreamedJson<{ status?: string }>(response, (data) => {
+        if (data.status && onProgress) {
+          onProgress(data.status);
         }
-      }
+      });
     } catch (error) {
       console.error('Error creating model:', error);
       throw error;
@@ -233,7 +258,9 @@ export const ollamaService = {
   async getSystemInfo(): Promise<SystemInfo> {
     try {
       // Get the monitoring server URL from localStorage or use default
-      const monitoringServerUrl = localStorage.getItem('monitoringServerUrl') || 'http://localhost:3001';
+      const monitoringServerUrl = normalizeBaseUrl(
+        localStorage.getItem('monitoringServerUrl') || 'http://localhost:3001'
+      );
 
       // Call the system-info endpoint on the monitoring server
       const response = await axios.get(`${monitoringServerUrl}/api/system-info`);
@@ -293,9 +320,9 @@ export const ollamaService = {
         id: existingIndex >= 0 ? deployedModels[existingIndex].id : Date.now().toString(),
         name,
         status: 'running' as const,
-        threads: config.threads || 4,
-        contextSize: config.context_size || 4096,
-        gpuLayers: config.gpu_layers || 0,
+        threads: config.threads ?? 4,
+        contextSize: config.context_size ?? config.contextSize ?? 4096,
+        gpuLayers: config.gpu_layers ?? 0,
         startedAt: new Date().toISOString()
       };
 

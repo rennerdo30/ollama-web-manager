@@ -1,5 +1,10 @@
 # Ollama Web Manager
 
+[![CI](https://github.com/rennerdo30/ollama-web-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/rennerdo30/ollama-web-manager/actions/workflows/ci.yml)
+[![Dependency Review](https://github.com/rennerdo30/ollama-web-manager/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/rennerdo30/ollama-web-manager/actions/workflows/dependency-review.yml)
+[![CodeQL](https://github.com/rennerdo30/ollama-web-manager/actions/workflows/codeql.yml/badge.svg)](https://github.com/rennerdo30/ollama-web-manager/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A modern web interface to manage your [Ollama](https://ollama.com/) instance. This tool provides a clean, intuitive dashboard for managing your locally running Ollama server.
 
 ## Features
@@ -21,7 +26,7 @@ A modern web interface to manage your [Ollama](https://ollama.com/) instance. Th
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/ollama-web-manager.git
+git clone https://github.com/rennerdo30/ollama-web-manager.git
 cd ollama-web-manager
 ```
 
@@ -134,6 +139,15 @@ Backend (Monitoring Server):
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and PR expectations.
+
+## Project Governance
+
+- Code of Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Security Policy: [SECURITY.md](SECURITY.md)
+- Pull Request template: [`.github/pull_request_template.md`](.github/pull_request_template.md)
+- Issue templates: [`.github/ISSUE_TEMPLATE`](.github/ISSUE_TEMPLATE)
 
 ## License
 
