@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Grid from '@mui/material/GridLegacy';
 import {
+  Grid,
   Typography,
   Paper,
   Box,
@@ -224,13 +224,13 @@ export default function Dashboard() {
 
       <Grid container spacing={3}>
         {/* System Stats Row */}
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: 'text.primary' }}>
             System Health
           </Typography>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="CPU Usage"
             value={`${systemInfo?.cpu.usage}%`}
@@ -240,7 +240,7 @@ export default function Dashboard() {
           />
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Memory Usage"
             value={`${systemInfo?.memory.used} GB`}
@@ -251,7 +251,7 @@ export default function Dashboard() {
         </Grid>
 
         {systemInfo?.gpus && systemInfo.gpus.length > 0 && systemInfo.gpus.map((gpu, index) => (
-          <Grid item xs={12} sm={6} md={3} key={`gpu-${index}`}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={`gpu-${index}`}>
             <StatCard
               title={`GPU ${index + 1}`}
               value={`${gpu.usage}%`}
@@ -272,7 +272,7 @@ export default function Dashboard() {
           </Grid>
         ))}
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Models"
             value={models.length}
@@ -284,13 +284,13 @@ export default function Dashboard() {
         </Grid>
 
         {/* Charts Row */}
-        <Grid item xs={12} sx={{ mt: 2 }}>
+        <Grid size={12} sx={{ mt: 2 }}>
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: 'text.primary' }}>
             Performance History
           </Typography>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper elevation={0} sx={{
             p: 3,
             height: 350,
@@ -310,7 +310,7 @@ export default function Dashboard() {
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Paper elevation={0} sx={{
             p: 3,
             height: 350,
