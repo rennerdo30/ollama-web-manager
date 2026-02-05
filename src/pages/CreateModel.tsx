@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
+import Grid from '@mui/material/Grid2';
 import {
-    Grid,
     Box,
     Typography,
     Paper,
