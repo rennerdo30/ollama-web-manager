@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import Grid from '@mui/material/Grid2';
 import {
+  Grid as MuiGrid,
   Typography,
   Box,
   Button,
@@ -16,6 +16,8 @@ import ModelPullDialog from '../components/ModelPullDialog';
 import ModelDeployDialog from '../components/ModelDeployDialog';
 import ModelDetailsDialog from '../components/ModelDetailsDialog';
 import { ollamaService, Model, ModelConfig } from '../api/ollamaApi';
+
+const Grid = MuiGrid as any;
 
 export default function Models() {
   const [models, setModels] = useState<Model[]>([]);
