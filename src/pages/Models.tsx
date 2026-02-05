@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import Grid from '@mui/material/GridLegacy';
 import {
+  Grid,
   Typography,
   Box,
   Button,
@@ -300,7 +300,7 @@ export default function Models() {
       <Grid container spacing={3}>
         {models.length > 0 ? (
           models.map((model) => (
-            <Grid item xs={12} sm={6} md={4} lg={3} key={model.name}>
+            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={model.name}>
               <Box sx={{ height: '100%' }}>
                 <ModelCard
                   model={model}
@@ -315,7 +315,7 @@ export default function Models() {
             </Grid>
           ))
         ) : (
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Box sx={{
               textAlign: 'center',
               py: 8,
