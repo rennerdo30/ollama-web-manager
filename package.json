@@ -15,7 +15,7 @@
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.7",
-    "@mui/material": "^7.3.7",
+    "@mui/material": "^7.3.8",
     "axios": "^1.13.4",
     "chart.js": "^4.5.1",
     "react": "^19.2.4",
