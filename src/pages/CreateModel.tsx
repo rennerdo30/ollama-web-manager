@@ -201,7 +201,7 @@ export default function CreateModel() {
                                     value={temperature}
                                     onChange={(e) => setTemperature(parseFloat(e.target.value))}
                                     disabled={loading}
-                                    inputProps={{ step: 0.1, min: 0, max: 2 }}
+                                    slotProps={{ htmlInput: { step: 0.1, min: 0, max: 2 } }}
                                     helperText="Creativity (0.0 - 2.0)"
                                 />
                             </Grid>

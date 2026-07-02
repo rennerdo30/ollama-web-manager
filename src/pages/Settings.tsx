@@ -136,7 +136,7 @@ export default function Settings() {
                 type="number"
                 value={refreshInterval}
                 onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                inputProps={{ min: 1, max: 60 }}
+                slotProps={{ htmlInput: { min: 1, max: 60 } }}
                 sx={{ width: 200 }}
               />
             </Box>
@@ -159,7 +159,7 @@ export default function Settings() {
         </Typography>
         <Divider sx={{ mb: 3 }} />
 
-        <Typography variant="body1" paragraph>
+        <Typography variant="body1" sx={{ mb: 2 }}>
           Ollama Web Manager v0.1.0
         </Typography>
         <Typography variant="body2" color="text.secondary">

@@ -332,7 +332,7 @@ export default function Models() {
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 No models available
               </Typography>
-              <Typography color="text.secondary" paragraph sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
+              <Typography color="text.secondary" sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
                 Your local library is empty. Pull a model from the Ollama library to get started.
               </Typography>
               <Button

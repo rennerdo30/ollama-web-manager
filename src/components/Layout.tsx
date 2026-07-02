@@ -101,9 +101,13 @@ export default function Layout({ children }: LayoutProps) {
                   </ListItemIcon>
                   <ListItemText
                     primary={item.text}
-                    primaryTypographyProps={{
-                      fontWeight: isSelected ? 600 : 500,
-                      fontSize: '0.95rem'
+                    slotProps={{
+                      primary: {
+                        sx: {
+                          fontWeight: isSelected ? 600 : 500,
+                          fontSize: '0.95rem'
+                        }
+                      }
                     }}
                   />
                 </ListItemButton>

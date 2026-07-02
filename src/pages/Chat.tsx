@@ -306,9 +306,11 @@ export default function Chat() {
           disabled={isTyping || !selectedModel}
           multiline
           maxRows={4}
-          InputProps={{
-            disableUnderline: true,
-            sx: { px: 2, py: 1 }
+          slotProps={{
+            input: {
+              disableUnderline: true,
+              sx: { px: 2, py: 1 }
+            }
           }}
         />
         <IconButton
