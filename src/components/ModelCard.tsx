@@ -27,6 +27,8 @@ import {
 import { useState } from 'react';
 import { Model } from '../api/ollamaApi';
 
+const MENU_ITEM_FONT_WEIGHT = 500;
+
 interface ModelCardProps {
   model: Model;
   onDelete: (model: Model) => void;
@@ -257,12 +259,14 @@ export default function ModelCard({
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
-        MenuListProps={{
-          'aria-labelledby': 'model-menu-button',
-        }}
-        PaperProps={{
-          elevation: 3,
-          sx: { borderRadius: 2, minWidth: 150, mt: 1 }
+        slotProps={{
+          list: {
+            'aria-labelledby': 'model-menu-button',
+          },
+          paper: {
+            elevation: 3,
+            sx: { borderRadius: 2, minWidth: 150, mt: 1 }
+          }
         }}
       >
         <MenuItem onClick={() => {
@@ -270,19 +274,19 @@ export default function ModelCard({
           onDeploy(model);
         }} sx={{ gap: 1.5 }}>
           <DeployIcon fontSize="small" color="primary" />
-          <Typography variant="body2" fontWeight={500}>Deploy</Typography>
+          <Typography variant="body2" sx={{ fontWeight: MENU_ITEM_FONT_WEIGHT }}>Deploy</Typography>
         </MenuItem>
         <MenuItem onClick={() => {
           handleClose();
           onInfo(model);
         }} sx={{ gap: 1.5 }}>
           <CodeIcon fontSize="small" color="info" />
-          <Typography variant="body2" fontWeight={500}>Details</Typography>
+          <Typography variant="body2" sx={{ fontWeight: MENU_ITEM_FONT_WEIGHT }}>Details</Typography>
         </MenuItem>
         <Divider sx={{ my: 0.5 }} />
         <MenuItem onClick={handleDeleteClick} sx={{ gap: 1.5, color: 'error.main' }}>
           <Box component="span" sx={{ display: 'flex', fontSize: 20 }}>×</Box>
-          <Typography variant="body2" fontWeight={500}>Delete</Typography>
+          <Typography variant="body2" sx={{ fontWeight: MENU_ITEM_FONT_WEIGHT }}>Delete</Typography>
         </MenuItem>
       </Menu>
 
@@ -291,8 +295,10 @@ export default function ModelCard({
         onClose={handleCancelDelete}
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-description"
-        PaperProps={{
-          sx: { borderRadius: 3 }
+        slotProps={{
+          paper: {
+            sx: { borderRadius: 3 }
+          }
         }}
       >
         <DialogTitle id="alert-dialog-title" sx={{ fontWeight: 600 }}>
