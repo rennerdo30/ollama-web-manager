@@ -15,6 +15,10 @@ import {
 import { useThemeContext } from '../context/ThemeContext';
 import { updateApiBaseUrl } from '../api/ollamaApi';
 
+const REFRESH_INTERVAL_MIN_SECONDS = 1;
+const REFRESH_INTERVAL_MAX_SECONDS = 60;
+const REFRESH_INTERVAL_DEFAULT_SECONDS = 5;
+
 export default function Settings() {
   const { darkMode, toggleDarkMode } = useThemeContext();
   const [serverUrl, setServerUrl] = useState(() => {
@@ -27,7 +31,10 @@ export default function Settings() {
     return localStorage.getItem('autoRefresh') !== 'false';
   });
   const [refreshInterval, setRefreshInterval] = useState(() => {
-    return parseInt(localStorage.getItem('refreshInterval') || '5', 10);
+    return parseInt(
+      localStorage.getItem('refreshInterval') || String(REFRESH_INTERVAL_DEFAULT_SECONDS),
+      10
+    );
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
@@ -35,8 +42,11 @@ export default function Settings() {
     const normalizedServerUrl = serverUrl.trim().replace(/\/+$/, '');
     const normalizedMonitoringServerUrl = monitoringServerUrl.trim().replace(/\/+$/, '');
     const parsedRefreshInterval = Number.isFinite(refreshInterval) && refreshInterval > 0
-      ? Math.min(60, Math.max(1, Math.round(refreshInterval)))
-      : 5;
+      ? Math.min(
+          REFRESH_INTERVAL_MAX_SECONDS,
+          Math.max(REFRESH_INTERVAL_MIN_SECONDS, Math.round(refreshInterval))
+        )
+      : REFRESH_INTERVAL_DEFAULT_SECONDS;
 
     setServerUrl(normalizedServerUrl);
     setMonitoringServerUrl(normalizedMonitoringServerUrl);
@@ -136,7 +146,12 @@ export default function Settings() {
                 type="number"
                 value={refreshInterval}
                 onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                inputProps={{ min: 1, max: 60 }}
+                slotProps={{
+                  htmlInput: {
+                    min: REFRESH_INTERVAL_MIN_SECONDS,
+                    max: REFRESH_INTERVAL_MAX_SECONDS
+                  }
+                }}
                 sx={{ width: 200 }}
               />
             </Box>
@@ -159,7 +174,7 @@ export default function Settings() {
         </Typography>
         <Divider sx={{ mb: 3 }} />
 
-        <Typography variant="body1" paragraph>
+        <Typography variant="body1" sx={{ mb: 2 }}>
           Ollama Web Manager v0.1.0
         </Typography>
         <Typography variant="body2" color="text.secondary">

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { ComponentType, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Grid as MuiGrid,
+  Grid,
   Typography,
   Paper,
   Box,
@@ -39,9 +38,6 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-
-type GridShimProps = { children?: ReactNode } & Record<string, unknown>;
-const Grid = MuiGrid as unknown as ComponentType<GridShimProps>;
 
 export default function Dashboard() {
   const navigate = useNavigate();
