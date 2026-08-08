@@ -28,6 +28,9 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 
 const drawerWidth = 260;
+const NAV_ITEM_FONT_SIZE = '0.95rem';
+const NAV_ITEM_FONT_WEIGHT = 500;
+const NAV_ITEM_FONT_WEIGHT_ACTIVE = 600;
 
 interface LayoutProps {
   children: ReactNode;
@@ -101,9 +104,13 @@ export default function Layout({ children }: LayoutProps) {
                   </ListItemIcon>
                   <ListItemText
                     primary={item.text}
-                    primaryTypographyProps={{
-                      fontWeight: isSelected ? 600 : 500,
-                      fontSize: '0.95rem'
+                    slotProps={{
+                      primary: {
+                        sx: {
+                          fontWeight: isSelected ? NAV_ITEM_FONT_WEIGHT_ACTIVE : NAV_ITEM_FONT_WEIGHT,
+                          fontSize: NAV_ITEM_FONT_SIZE
+                        }
+                      }
                     }}
                   />
                 </ListItemButton>
