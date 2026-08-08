@@ -77,8 +77,10 @@ export default function ModelDetailsDialog({ open, onClose, modelName }: ModelDe
             onClose={onClose}
             maxWidth="md"
             fullWidth
-            PaperProps={{
-                sx: { borderRadius: 3 }
+            slotProps={{
+                paper: {
+                    sx: { borderRadius: 3 }
+                }
             }}
         >
             <DialogTitle sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 2 }}>

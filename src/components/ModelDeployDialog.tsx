@@ -218,7 +218,7 @@ export default function ModelDeployDialog({
           <Typography component="div" variant="body2" color="text.secondary">
             Number of CPU threads to use for inference
             {systemInfo && (
-              <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+              <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
                 Your system has {systemInfo.cpu.cores} cores and {systemInfo.cpu.threads} threads available
               </Typography>
             )}
