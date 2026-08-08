@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { ComponentType, ReactNode } from 'react';
 import {
-    Grid as MuiGrid,
+    Grid,
     Box,
     Typography,
     Paper,
@@ -23,8 +22,9 @@ import {
 import { ollamaService, Model } from '../api/ollamaApi';
 import { useNavigate } from 'react-router-dom';
 
-type GridShimProps = { children?: ReactNode } & Record<string, unknown>;
-const Grid = MuiGrid as unknown as ComponentType<GridShimProps>;
+const TEMPERATURE_MIN = 0;
+const TEMPERATURE_MAX = 2;
+const TEMPERATURE_STEP = 0.1;
 
 export default function CreateModel() {
     const [models, setModels] = useState<Model[]>([]);
@@ -201,7 +201,13 @@ export default function CreateModel() {
                                     value={temperature}
                                     onChange={(e) => setTemperature(parseFloat(e.target.value))}
                                     disabled={loading}
-                                    inputProps={{ step: 0.1, min: 0, max: 2 }}
+                                    slotProps={{
+                                        htmlInput: {
+                                            step: TEMPERATURE_STEP,
+                                            min: TEMPERATURE_MIN,
+                                            max: TEMPERATURE_MAX
+                                        }
+                                    }}
                                     helperText="Creativity (0.0 - 2.0)"
                                 />
                             </Grid>

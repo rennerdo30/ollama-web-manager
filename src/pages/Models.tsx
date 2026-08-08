@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { ComponentType, ReactNode } from 'react';
 import {
-  Grid as MuiGrid,
+  Grid,
   Typography,
   Box,
   Button,
@@ -17,9 +16,6 @@ import ModelPullDialog from '../components/ModelPullDialog';
 import ModelDeployDialog from '../components/ModelDeployDialog';
 import ModelDetailsDialog from '../components/ModelDetailsDialog';
 import { ollamaService, Model, ModelConfig } from '../api/ollamaApi';
-
-type GridShimProps = { children?: ReactNode } & Record<string, unknown>;
-const Grid = MuiGrid as unknown as ComponentType<GridShimProps>;
 
 export default function Models() {
   const [models, setModels] = useState<Model[]>([]);
@@ -332,7 +328,7 @@ export default function Models() {
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 No models available
               </Typography>
-              <Typography color="text.secondary" paragraph sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
+              <Typography color="text.secondary" sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
                 Your local library is empty. Pull a model from the Ollama library to get started.
               </Typography>
               <Button
