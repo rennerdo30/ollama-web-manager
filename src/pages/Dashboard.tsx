@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Grid,
-  Typography,
-  Paper,
+  Alert,
   Box,
+  Card,
+  CardContent,
+  Grid,
+  Paper,
+  Skeleton,
+  Typography,
+  alpha,
   useTheme
 } from '@mui/material';
 import {
@@ -17,319 +22,363 @@ import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
+  Filler,
   LinearScale,
   PointElement,
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  type ChartOptions
 } from 'chart.js';
 import StatCard from '../components/StatCard';
-import LoadingState from '../components/LoadingState';
+import PageHeader from '../components/PageHeader';
+import ErrorState from '../components/ErrorState';
 import { ollamaService, SystemInfo, Model } from '../api/ollamaApi';
+import {
+  CHART_HISTORY_LENGTH,
+  REFRESH_INTERVAL_DEFAULT_SECONDS,
+  STORAGE_KEYS,
+} from '../constants/app';
+import { formatCount, formatGigabytes, formatPercent } from '../utils/format';
+import { RADIUS, SPACING } from '../theme';
 
-// Register ChartJS components
+// Register ChartJS components (Filler is required by `fill: true`).
 ChartJS.register(
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  Filler,
   Title,
   Tooltip,
   Legend
 );
 
+const CHART_PANEL_HEIGHT = 320;
+const CHART_TENSION = 0.35;
+const CHART_LINE_WIDTH = 2;
+const CHART_FILL_OPACITY = 0.16;
+const STAT_SKELETON_COUNT = 4;
+const MS_PER_SECOND = 1000;
+
+/** Marker the API layer returns when the monitoring server cannot be reached. */
+const MONITORING_OFFLINE_MARKER = 'monitoring server offline';
+
+const EMPTY_SERIES = Array<number>(CHART_HISTORY_LENGTH).fill(0);
+const SERIES_LABELS = Array.from({ length: CHART_HISTORY_LENGTH }, (_, index) => index.toString());
+
+const isMonitoringOffline = (info: SystemInfo | null): boolean =>
+  Boolean(info?.gpus?.some((gpu) => gpu.name.toLowerCase().includes(MONITORING_OFFLINE_MARKER)));
+
+const readRefreshSettings = () => {
+  const autoRefresh = localStorage.getItem(STORAGE_KEYS.autoRefresh) !== 'false';
+  const rawInterval = Number.parseInt(
+    localStorage.getItem(STORAGE_KEYS.refreshInterval) || String(REFRESH_INTERVAL_DEFAULT_SECONDS),
+    10
+  );
+  const intervalSeconds = Number.isFinite(rawInterval) && rawInterval > 0
+    ? rawInterval
+    : REFRESH_INTERVAL_DEFAULT_SECONDS;
+
+  return { autoRefresh, intervalSeconds };
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
+  const theme = useTheme();
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const theme = useTheme();
-  const defaultRefreshIntervalSeconds = 5;
+  const [cpuSeries, setCpuSeries] = useState<number[]>(EMPTY_SERIES);
+  const [memorySeries, setMemorySeries] = useState<number[]>(EMPTY_SERIES);
 
-  // Data for CPU usage chart
-  const [cpuData, setCpuData] = useState({
-    labels: Array.from({ length: 20 }, (_, i) => i.toString()),
-    datasets: [
-      {
-        label: 'CPU Usage %',
-        data: Array(20).fill(0),
-        borderColor: theme.palette.primary.main,
-        backgroundColor: theme.palette.primary.light,
-        fill: true,
-        tension: 0.3
-      }
-    ]
-  });
+  const fetchData = useCallback(async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
 
-  // Data for memory usage chart
-  const [memoryData, setMemoryData] = useState({
-    labels: Array.from({ length: 20 }, (_, i) => i.toString()),
-    datasets: [
-      {
-        label: 'Memory Usage (GB)',
-        data: Array(20).fill(0),
-        borderColor: theme.palette.secondary.main,
-        backgroundColor: theme.palette.secondary.light,
-        fill: true,
-        tension: 0.3
-      }
-    ]
-  });
+    try {
+      const [modelsData, systemInfoData] = await Promise.all([
+        ollamaService.getModels(),
+        ollamaService.getSystemInfo()
+      ]);
 
-  // Chart options
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      y: {
-        beginAtZero: true
-      }
-    },
-    plugins: {
-      legend: {
-        display: false
+      setSystemInfo(systemInfoData);
+      setModels(modelsData);
+      setError('');
+
+      setCpuSeries((previous) => [...previous.slice(1), systemInfoData.cpu.usage]);
+      setMemorySeries((previous) => [...previous.slice(1), systemInfoData.memory.used]);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Could not reach Ollama. Check that it is running and that the server URL in Settings is correct.');
+    } finally {
+      if (showLoading) {
+        setLoading(false);
       }
     }
-  };
+  }, []);
+
+  // Keep the interval callback fresh without restarting the timer each render.
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
 
   useEffect(() => {
-    setCpuData((prev) => ({
-      ...prev,
-      datasets: [
-        {
-          ...prev.datasets[0],
-          borderColor: theme.palette.primary.main,
-          backgroundColor: theme.palette.primary.light
-        }
-      ]
-    }));
+    void fetchDataRef.current(true);
 
-    setMemoryData((prev) => ({
-      ...prev,
-      datasets: [
-        {
-          ...prev.datasets[0],
-          borderColor: theme.palette.secondary.main,
-          backgroundColor: theme.palette.secondary.light
-        }
-      ]
-    }));
-  }, [theme.palette.primary.light, theme.palette.primary.main, theme.palette.secondary.light, theme.palette.secondary.main]);
-
-  useEffect(() => {
-    const fetchData = async (showLoading = false) => {
-      if (showLoading) {
-        setLoading(true);
-      }
-
-      try {
-        const [modelsData, systemInfoData] = await Promise.all([
-          ollamaService.getModels(),
-          ollamaService.getSystemInfo()
-        ]);
-
-        setSystemInfo(systemInfoData);
-        setModels(modelsData);
-        setError('');
-
-        // Update charts
-        updateCharts(systemInfoData);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Failed to fetch data. Please check if Ollama is running.');
-      } finally {
-        if (showLoading) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchData(true);
-
-    const autoRefreshEnabled = localStorage.getItem('autoRefresh') !== 'false';
-    const rawInterval = Number.parseInt(
-      localStorage.getItem('refreshInterval') || String(defaultRefreshIntervalSeconds),
-      10
-    );
-    const normalizedInterval = Number.isFinite(rawInterval) && rawInterval > 0
-      ? rawInterval
-      : defaultRefreshIntervalSeconds;
-
-    if (!autoRefreshEnabled) {
+    const { autoRefresh, intervalSeconds } = readRefreshSettings();
+    if (!autoRefresh) {
       return;
     }
 
-    // Set up interval to refresh data
     const intervalId = setInterval(() => {
-      fetchData();
-    }, normalizedInterval * 1000);
+      void fetchDataRef.current();
+    }, intervalSeconds * MS_PER_SECOND);
 
     return () => clearInterval(intervalId);
   }, []);
 
-  const updateCharts = (data: SystemInfo) => {
-    // Update CPU chart
-    setCpuData(prev => {
-      const newData = {
-        ...prev,
-        datasets: [
-          {
-            ...prev.datasets[0],
-            data: [...prev.datasets[0].data.slice(1), data.cpu.usage]
-          }
-        ]
-      };
-      return newData;
-    });
+  const chartOptions = useMemo<ChartOptions<'line'>>(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 0 },
+    interaction: { intersect: false, mode: 'index' },
+    scales: {
+      x: {
+        display: false,
+      },
+      y: {
+        beginAtZero: true,
+        border: { display: false },
+        grid: { color: theme.palette.divider },
+        ticks: { color: theme.palette.text.secondary, maxTicksLimit: 5 },
+      },
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: theme.palette.background.paper,
+        titleColor: theme.palette.text.primary,
+        bodyColor: theme.palette.text.secondary,
+        borderColor: theme.palette.divider,
+        borderWidth: 1,
+        displayColors: false,
+        padding: 10,
+      },
+    },
+  }), [theme]);
 
-    // Update memory chart
-    setMemoryData(prev => {
-      const newData = {
-        ...prev,
-        datasets: [
-          {
-            ...prev.datasets[0],
-            data: [...prev.datasets[0].data.slice(1), data.memory.used]
-          }
-        ]
-      };
-      return newData;
-    });
-  };
+  const buildChartData = useCallback((label: string, data: number[], color: string) => ({
+    labels: SERIES_LABELS,
+    datasets: [
+      {
+        label,
+        data,
+        borderColor: color,
+        backgroundColor: alpha(color, CHART_FILL_OPACITY),
+        borderWidth: CHART_LINE_WIDTH,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: true,
+        tension: CHART_TENSION,
+      },
+    ],
+  }), []);
+
+  const monitoringOffline = isMonitoringOffline(systemInfo);
 
   if (loading) {
-    return <LoadingState message="Loading dashboard data..." />;
-  }
-
-  if (error) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Typography color="error">{error}</Typography>
+      <Box>
+        <PageHeader
+          title="Dashboard"
+          description="Real-time overview of your local Ollama instance performance and model library."
+        />
+        <Grid container spacing={SPACING.grid} aria-busy="true" aria-label="Loading dashboard">
+          {Array.from({ length: STAT_SKELETON_COUNT }, (_, index) => (
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={`stat-skeleton-${index}`}>
+              <Card>
+                <CardContent sx={{ p: 3 }}>
+                  <Skeleton variant="text" width="55%" />
+                  <Skeleton variant="text" width="40%" height={44} />
+                  <Skeleton variant="text" width="70%" />
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+          {[0, 1].map((index) => (
+            <Grid size={{ xs: 12, md: 6 }} key={`chart-skeleton-${index}`}>
+              <Skeleton variant="rounded" height={CHART_PANEL_HEIGHT} />
+            </Grid>
+          ))}
+        </Grid>
       </Box>
     );
   }
 
   return (
     <Box>
-      <Box sx={{ mb: 5 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 800, letterSpacing: -0.5 }}>
-          Dashboard
+      <PageHeader
+        title="Dashboard"
+        description="Real-time overview of your local Ollama instance performance and model library."
+      />
+
+      {error && (
+        <ErrorState title="Connection problem" message={error} onRetry={() => void fetchData(true)} />
+      )}
+
+      {!error && monitoringOffline && (
+        <Alert severity="info" sx={{ mb: SPACING.grid }}>
+          The monitoring server is offline, so hardware metrics are unavailable. Start it with{' '}
+          <Box component="code" sx={{ fontFamily: 'monospace' }}>npm run server</Box>.
+        </Alert>
+      )}
+
+      <Box component="section" aria-labelledby="system-health-heading" sx={{ mb: SPACING.section }}>
+        <Typography id="system-health-heading" variant="h6" component="h2" sx={{ mb: 2 }}>
+          System Health
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600 }}>
-          Real-time overview of your local Ollama instance performance and model library.
-        </Typography>
-      </Box>
 
-      <Grid container spacing={3}>
-        {/* System Stats Row */}
-        <Grid size={12}>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: 'text.primary' }}>
-            System Health
-          </Typography>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <StatCard
-            title="CPU Usage"
-            value={`${systemInfo?.cpu.usage}%`}
-            subtitle={`${systemInfo?.cpu.cores} cores / ${systemInfo?.cpu.threads} threads`}
-            icon={<SpeedIcon fontSize="medium" />}
-            color="primary"
-          />
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <StatCard
-            title="Memory Usage"
-            value={`${systemInfo?.memory.used} GB`}
-            subtitle={`of ${systemInfo?.memory.total} GB Total`}
-            icon={<MemoryIcon fontSize="medium" />}
-            color="secondary"
-          />
-        </Grid>
-
-        {systemInfo?.gpus && systemInfo.gpus.length > 0 && systemInfo.gpus.map((gpu, index) => (
-          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={`gpu-${index}`}>
+        <Grid container spacing={SPACING.grid}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <StatCard
-              title={`GPU ${index + 1}`}
-              value={`${gpu.usage}%`}
+              title="CPU Usage"
+              value={formatPercent(systemInfo?.cpu.usage)}
               subtitle={
-                <Box component="span">
-                  {gpu.name}
-                  {gpu.memory.total > 0 && (
-                    <>
-                      <br />
-                      {gpu.memory.used}/{gpu.memory.total} GB VRAM
-                    </>
-                  )}
-                </Box>
+                systemInfo
+                  ? `${formatCount(systemInfo.cpu.cores)} cores / ${formatCount(systemInfo.cpu.threads)} threads`
+                  : 'Awaiting monitoring data'
               }
-              icon={<ViewModuleIcon fontSize="medium" />}
-              color="success"
+              icon={<SpeedIcon />}
+              color="primary"
             />
           </Grid>
-        ))}
 
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <StatCard
-            title="Models"
-            value={models.length}
-            subtitle="Ready to deploy"
-            icon={<StorageIcon fontSize="medium" />}
-            color="info"
-            onClick={() => navigate('/models')}
-          />
-        </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard
+              title="Memory Usage"
+              value={formatGigabytes(systemInfo?.memory.used)}
+              subtitle={
+                systemInfo
+                  ? `of ${formatGigabytes(systemInfo.memory.total)} total`
+                  : 'Awaiting monitoring data'
+              }
+              icon={<MemoryIcon />}
+              color="secondary"
+            />
+          </Grid>
 
-        {/* Charts Row */}
-        <Grid size={12} sx={{ mt: 2 }}>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: 'text.primary' }}>
-            Performance History
-          </Typography>
-        </Grid>
+          {systemInfo?.gpus?.map((gpu, index) => (
+            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={`gpu-${gpu.id}-${index}`}>
+              <StatCard
+                title={`GPU ${index + 1}`}
+                value={formatPercent(gpu.usage)}
+                subtitle={
+                  <Box component="span">
+                    {gpu.name}
+                    {gpu.memory.total > 0 && (
+                      <>
+                        <br />
+                        {`${formatGigabytes(gpu.memory.used)} of ${formatGigabytes(gpu.memory.total)} VRAM`}
+                      </>
+                    )}
+                  </Box>
+                }
+                icon={<ViewModuleIcon />}
+                color="success"
+              />
+            </Grid>
+          ))}
 
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper elevation={0} sx={{
-            p: 3,
-            height: 350,
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'divider'
-          }}>
-            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                CPU Usage
-              </Typography>
-              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />
-            </Box>
-            <Box sx={{ height: 270 }}>
-              <Line options={chartOptions} data={cpuData} />
-            </Box>
-          </Paper>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard
+              title="Models"
+              value={formatCount(models.length)}
+              subtitle="Ready to deploy — open the library"
+              icon={<StorageIcon />}
+              color="info"
+              onClick={() => navigate('/models')}
+            />
+          </Grid>
         </Grid>
+      </Box>
 
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper elevation={0} sx={{
-            p: 3,
-            height: 350,
-            borderRadius: 3,
-            border: '1px solid',
-            borderColor: 'divider'
-          }}>
-            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Memory Usage
-              </Typography>
-              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'secondary.main' }} />
-            </Box>
-            <Box sx={{ height: 270 }}>
-              <Line options={chartOptions} data={memoryData} />
-            </Box>
-          </Paper>
+      <Box component="section" aria-labelledby="performance-heading">
+        <Typography id="performance-heading" variant="h6" component="h2" sx={{ mb: 2 }}>
+          Performance History
+        </Typography>
+
+        <Grid container spacing={SPACING.grid}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <ChartPanel
+              title="CPU Usage"
+              caption={formatPercent(systemInfo?.cpu.usage)}
+              dotColor={theme.palette.primary.main}
+            >
+              <Line
+                options={chartOptions}
+                data={buildChartData('CPU usage (%)', cpuSeries, theme.palette.primary.main)}
+                aria-label="Line chart of recent CPU usage percentage"
+                role="img"
+              />
+            </ChartPanel>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 6 }}>
+            <ChartPanel
+              title="Memory Usage"
+              caption={formatGigabytes(systemInfo?.memory.used)}
+              dotColor={theme.palette.secondary.main}
+            >
+              <Line
+                options={chartOptions}
+                data={buildChartData('Memory usage (GB)', memorySeries, theme.palette.secondary.main)}
+                aria-label="Line chart of recent memory usage in gigabytes"
+                role="img"
+              />
+            </ChartPanel>
+          </Grid>
         </Grid>
-      </Grid>
+      </Box>
     </Box>
+  );
+}
+
+interface ChartPanelProps {
+  title: string;
+  caption: string;
+  dotColor: string;
+  children: ReactNode;
+}
+
+function ChartPanel({ title, caption, dotColor, children }: ChartPanelProps) {
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: SPACING.panel,
+        height: CHART_PANEL_HEIGHT,
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: RADIUS.lg,
+        border: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box aria-hidden sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: dotColor }} />
+          <Typography variant="subtitle1" component="h3">
+            {title}
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+          {caption}
+        </Typography>
+      </Box>
+      <Box sx={{ flexGrow: 1, minHeight: 0 }}>{children}</Box>
+    </Paper>
   );
 }
