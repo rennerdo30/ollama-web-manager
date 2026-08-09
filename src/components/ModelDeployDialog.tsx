@@ -62,7 +62,12 @@ export default function ModelDeployDialog({
   });
   const [error, setError] = useState('');
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [fetchFailed, setFetchFailed] = useState(false);
+  const [initializedFor, setInitializedFor] = useState<{ model: string; info: SystemInfo } | null>(null);
+
+  // Derived: the system-info fetch is in flight while the dialog is open and
+  // we have neither data nor a failure.
+  const loading = open && !systemInfo && !fetchFailed;
 
   // Recommended context sizes based on model size (parameters)
   const recommendedContextSizes: { [key: string]: number } = {
@@ -73,68 +78,71 @@ export default function ModelDeployDialog({
     '70': 8192
   };
 
-  // Function to fetch system information
-  const fetchSystemInfo = async () => {
-    try {
-      setLoading(true);
-      const info = await ollamaService.getSystemInfo();
-      setSystemInfo(info);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching system info:', err);
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (open) {
-      fetchSystemInfo();
+    if (!open) {
+      return;
     }
+    let cancelled = false;
+    ollamaService.getSystemInfo()
+      .then((info) => {
+        if (!cancelled) {
+          setSystemInfo(info);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching system info:', err);
+        if (!cancelled) {
+          setFetchFailed(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
-  useEffect(() => {
-    if (model && systemInfo) {
-      const availableGpus = systemInfo.gpus.filter((gpu) => !isPlaceholderGpu(gpu.name));
+  // Initialise the form with recommended values whenever the (model, systemInfo)
+  // pair changes — done while rendering ("adjusting state when props change"),
+  // not from an effect, per react-hooks/set-state-in-effect.
+  if (model && systemInfo && (initializedFor?.model !== model.name || initializedFor?.info !== systemInfo)) {
+    setInitializedFor({ model: model.name, info: systemInfo });
 
-      // Get model size from name (e.g., llama2:7b -> 7b)
-      const modelSizeMatch = model.name.match(/(\d+)\s*b/i);
-      const modelSize = modelSizeMatch ? modelSizeMatch[1] : null;
+    const availableGpus = systemInfo.gpus.filter((gpu) => !isPlaceholderGpu(gpu.name));
 
-      // Set recommended context size based on model size
-      const recommendedContext = modelSize && recommendedContextSizes[modelSize]
-        ? recommendedContextSizes[modelSize]
-        : 4096;
+    // Get model size from name (e.g., llama2:7b -> 7b)
+    const modelSizeMatch = model.name.match(/(\d+)\s*b/i);
+    const modelSize = modelSizeMatch ? modelSizeMatch[1] : null;
 
-      // Set recommended thread count based on CPU cores
-      const recommendedThreads = Math.max(2, Math.min(
-        Math.floor(systemInfo.cpu.threads / 2), // Half the available threads
-        8 // Cap at 8 threads by default
-      ));
+    // Set recommended context size based on model size
+    const recommendedContext = modelSize && recommendedContextSizes[modelSize]
+      ? recommendedContextSizes[modelSize]
+      : 4096;
 
-      // Set recommended GPU layers based on available GPU memory
-      // If model has quantization level, adjust recommendation
-      let recommendedGpuLayers = 0;
+    // Set recommended thread count based on CPU cores
+    const recommendedThreads = Math.max(2, Math.min(
+      Math.floor(systemInfo.cpu.threads / 2), // Half the available threads
+      8 // Cap at 8 threads by default
+    ));
 
-      if (systemInfo.gpus && systemInfo.gpus.length > 0) {
-        // Simple formula: If we have a GPU, use it for all layers
-        recommendedGpuLayers = availableGpus.length > 0 ? 100 : 0;
-      }
-
-      // Reset config with recommended values
-      setConfig({
-        threads: recommendedThreads,
-        contextSize: recommendedContext,
-        gpu_layers: recommendedGpuLayers,
-        temperature: 0.7,
-        system_prompt: '',
-        parallel_executions: 1,
-        selected_gpus: availableGpus.length > 0
-          ? [availableGpus[0].id]
-          : []
-      });
+    // Set recommended GPU layers based on available GPU memory
+    let recommendedGpuLayers = 0;
+    if (systemInfo.gpus && systemInfo.gpus.length > 0) {
+      // Simple formula: If we have a GPU, use it for all layers
+      recommendedGpuLayers = availableGpus.length > 0 ? 100 : 0;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, systemInfo]);
+
+    // Reset config with recommended values
+    setConfig({
+      threads: recommendedThreads,
+      contextSize: recommendedContext,
+      gpu_layers: recommendedGpuLayers,
+      temperature: 0.7,
+      system_prompt: '',
+      parallel_executions: 1,
+      selected_gpus: availableGpus.length > 0
+        ? [availableGpus[0].id]
+        : []
+    });
+  }
 
   const handleDeploy = async () => {
     setError('');

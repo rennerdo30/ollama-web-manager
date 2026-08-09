@@ -54,8 +54,6 @@ export default function Deploy() {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
-
       // Fetch models
       const modelsData = await ollamaService.getModels();
       setModels(modelsData);
@@ -74,11 +72,35 @@ export default function Deploy() {
   };
 
   useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+    Promise.all([ollamaService.getModels(), fetchDeployedModels()])
+      .then(([modelsData, deployedData]) => {
+        if (cancelled) return;
+        setModels(modelsData);
+        setDeployedModels(deployedData);
+        setError('');
+      })
+      .catch((err) => {
+        console.error('Error fetching data:', err);
+        if (!cancelled) {
+          setError('Failed to fetch data. Please check if Ollama is running.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+     
   }, []);
 
   const handleRefresh = () => {
+    // Setting state in an event handler is fine; doing it synchronously inside
+    // the mount effect is what react-hooks/set-state-in-effect forbids.
+    setLoading(true);
     fetchData();
   };
 
