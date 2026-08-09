@@ -45,18 +45,23 @@ export default function CreateModel() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetchModels();
+        let cancelled = false;
+        ollamaService.getModels()
+            .then((data) => {
+                if (!cancelled) {
+                    setModels(data);
+                }
+            })
+            .catch((err) => {
+                console.error('Error fetching models:', err);
+                if (!cancelled) {
+                    setError('Failed to load base models');
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
-
-    const fetchModels = async () => {
-        try {
-            const data = await ollamaService.getModels();
-            setModels(data);
-        } catch (err) {
-            console.error('Error fetching models:', err);
-            setError('Failed to load base models');
-        }
-    };
 
     const generateModelfile = () => {
         let content = `FROM ${baseModel}\n`;

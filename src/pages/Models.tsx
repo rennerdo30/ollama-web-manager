@@ -45,7 +45,27 @@ export default function Models() {
   };
 
   useEffect(() => {
-    void fetchModels();
+    let cancelled = false;
+    ollamaService.getModels()
+      .then((data) => {
+        if (cancelled) return;
+        setModels(data);
+        setError('');
+      })
+      .catch((err) => {
+        console.error('Error fetching models:', err);
+        if (!cancelled) {
+          setError('Failed to fetch models. Please check if Ollama is running.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleOpenPullDialog = () => {

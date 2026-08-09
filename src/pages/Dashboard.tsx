@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Grid,
@@ -94,36 +94,64 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    setCpuData((prev) => ({
-      ...prev,
-      datasets: [
-        {
-          ...prev.datasets[0],
-          borderColor: theme.palette.primary.main,
-          backgroundColor: theme.palette.primary.light
-        }
-      ]
-    }));
+  // Derive themed chart data at render time instead of copying theme colors
+  // into state from an effect (react-hooks/set-state-in-effect).
+  const themedCpuData = useMemo(() => ({
+    ...cpuData,
+    datasets: [
+      {
+        ...cpuData.datasets[0],
+        borderColor: theme.palette.primary.main,
+        backgroundColor: theme.palette.primary.light
+      }
+    ]
+  }), [cpuData, theme.palette.primary.main, theme.palette.primary.light]);
 
-    setMemoryData((prev) => ({
-      ...prev,
-      datasets: [
-        {
-          ...prev.datasets[0],
-          borderColor: theme.palette.secondary.main,
-          backgroundColor: theme.palette.secondary.light
-        }
-      ]
-    }));
-  }, [theme.palette.primary.light, theme.palette.primary.main, theme.palette.secondary.light, theme.palette.secondary.main]);
+  const themedMemoryData = useMemo(() => ({
+    ...memoryData,
+    datasets: [
+      {
+        ...memoryData.datasets[0],
+        borderColor: theme.palette.secondary.main,
+        backgroundColor: theme.palette.secondary.light
+      }
+    ]
+  }), [memoryData, theme.palette.secondary.main, theme.palette.secondary.light]);
+
+  function updateCharts(data: SystemInfo) {
+    // Update CPU chart
+    setCpuData(prev => {
+      const newData = {
+        ...prev,
+        datasets: [
+          {
+            ...prev.datasets[0],
+            data: [...prev.datasets[0].data.slice(1), data.cpu.usage]
+          }
+        ]
+      };
+      return newData;
+    });
+
+    // Update memory chart
+    setMemoryData(prev => {
+      const newData = {
+        ...prev,
+        datasets: [
+          {
+            ...prev.datasets[0],
+            data: [...prev.datasets[0].data.slice(1), data.memory.used]
+          }
+        ]
+      };
+      return newData;
+    });
+  }
 
   useEffect(() => {
     const fetchData = async (showLoading = false) => {
-      if (showLoading) {
-        setLoading(true);
-      }
-
+      // Initial `loading` comes from useState(true); setting it here synchronously
+      // inside the effect would violate react-hooks/set-state-in-effect.
       try {
         const [modelsData, systemInfoData] = await Promise.all([
           ollamaService.getModels(),
@@ -169,35 +197,6 @@ export default function Dashboard() {
     return () => clearInterval(intervalId);
   }, []);
 
-  const updateCharts = (data: SystemInfo) => {
-    // Update CPU chart
-    setCpuData(prev => {
-      const newData = {
-        ...prev,
-        datasets: [
-          {
-            ...prev.datasets[0],
-            data: [...prev.datasets[0].data.slice(1), data.cpu.usage]
-          }
-        ]
-      };
-      return newData;
-    });
-
-    // Update memory chart
-    setMemoryData(prev => {
-      const newData = {
-        ...prev,
-        datasets: [
-          {
-            ...prev.datasets[0],
-            data: [...prev.datasets[0].data.slice(1), data.memory.used]
-          }
-        ]
-      };
-      return newData;
-    });
-  };
 
   if (loading) {
     return <LoadingState message="Loading dashboard data..." />;
@@ -305,7 +304,7 @@ export default function Dashboard() {
               <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main' }} />
             </Box>
             <Box sx={{ height: 270 }}>
-              <Line options={chartOptions} data={cpuData} />
+              <Line options={chartOptions} data={themedCpuData} />
             </Box>
           </Paper>
         </Grid>
@@ -325,7 +324,7 @@ export default function Dashboard() {
               <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'secondary.main' }} />
             </Box>
             <Box sx={{ height: 270 }}>
-              <Line options={chartOptions} data={memoryData} />
+              <Line options={chartOptions} data={themedMemoryData} />
             </Box>
           </Paper>
         </Grid>
