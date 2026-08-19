@@ -1,21 +1,64 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Grid,
   Typography,
   Box,
   Button,
-  Alert,
+  Card,
+  CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Fab,
+  Skeleton,
   Snackbar,
-  useTheme
+  Alert
 } from '@mui/material';
-import { Add as AddIcon, CloudDownload as DownloadIcon } from '@mui/icons-material';
+import {
+  Add as AddIcon,
+  CloudDownload as DownloadIcon,
+  DeleteOutlined as DeleteIcon,
+  CheckBoxOutlined as SelectIcon
+} from '@mui/icons-material';
 import ModelCard from '../components/ModelCard';
-import LoadingState from '../components/LoadingState';
 import ModelPullDialog from '../components/ModelPullDialog';
 import ModelDeployDialog from '../components/ModelDeployDialog';
 import ModelDetailsDialog from '../components/ModelDetailsDialog';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import { ollamaService, Model, ModelConfig } from '../api/ollamaApi';
+import { NEVER_CANCELLED, SNACKBAR_AUTO_HIDE_MS } from '../constants/app';
+import { RADIUS, SPACING } from '../theme';
+
+const MODEL_SKELETON_COUNT = 6;
+const MODEL_SKELETON_BUTTON_HEIGHT = 36;
+const FAB_OFFSET = 16;
+
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error';
+}
+
+const INITIAL_SNACKBAR: SnackbarState = { open: false, message: '', severity: 'success' };
+
+/**
+ * Full sentences per count, so plurals stay correct instead of being stitched
+ * together from fragments (the old label read "Delete Selected (1)").
+ */
+const deleteSelectedLabel = (count: number) =>
+  count === 1 ? 'Delete 1 selected model' : `Delete ${count} selected models`;
+
+const deleteConfirmQuestion = (count: number) =>
+  count === 1
+    ? 'Delete the selected model? This cannot be undone.'
+    : `Delete the ${count} selected models? This cannot be undone.`;
+
+const deleteSuccessMessage = (count: number) =>
+  count === 1 ? 'Deleted 1 model.' : `Deleted ${count} models.`;
 
 export default function Models() {
   const [models, setModels] = useState<Model[]>([]);
@@ -28,45 +71,45 @@ export default function Models() {
   const [isPulling, setIsPulling] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [pullProgress, setPullProgress] = useState(0);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-  const theme = useTheme();
+  const [snackbar, setSnackbar] = useState<SnackbarState>(INITIAL_SNACKBAR);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isBulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-  const fetchModels = async () => {
+  // `isCancelled` lets the mount effect discard a response that arrives after
+  // unmount while still sharing one code path with the retry button.
+  const fetchModels = useCallback(async (isCancelled: () => boolean = NEVER_CANCELLED) => {
     try {
       const data = await ollamaService.getModels();
+      if (isCancelled()) return;
       setModels(data);
       setError('');
     } catch (err) {
       console.error('Error fetching models:', err);
-      setError('Failed to fetch models. Please check if Ollama is running.');
+      if (isCancelled()) return;
+      setError('Could not load your model library. Check that Ollama is running and reachable.');
     } finally {
-      setLoading(false);
+      if (!isCancelled()) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    ollamaService.getModels()
-      .then((data) => {
-        if (cancelled) return;
-        setModels(data);
-        setError('');
-      })
-      .catch((err) => {
-        console.error('Error fetching models:', err);
-        if (!cancelled) {
-          setError('Failed to fetch models. Please check if Ollama is running.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
+    // Deferred to a microtask so the effect body performs no state update
+    // itself (react-hooks/set-state-in-effect).
+    void Promise.resolve().then(() => fetchModels(() => cancelled));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fetchModels]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    void fetchModels();
+  };
 
   const handleOpenPullDialog = () => {
     setPullDialogOpen(true);
@@ -112,7 +155,6 @@ export default function Models() {
       setIsPulling(false);
       setPullDialogOpen(false);
 
-      // Refresh models list
       await fetchModels();
 
       setSnackbar({
@@ -168,8 +210,6 @@ export default function Models() {
   const handleDeleteModel = async (model: Model) => {
     try {
       await ollamaService.deleteModel(model.name);
-
-      // Refresh models list
       await fetchModels();
 
       setSnackbar({
@@ -187,33 +227,27 @@ export default function Models() {
     }
   };
 
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-
-  // ... existing code ...
-
   const handleToggleSelectionMode = () => {
-    setIsSelectionMode(!isSelectionMode);
+    setIsSelectionMode((current) => !current);
     setSelectedModels([]);
   };
 
   const handleSelectModel = (model: Model) => {
-    if (selectedModels.includes(model.name)) {
-      setSelectedModels(selectedModels.filter(name => name !== model.name));
-    } else {
-      setSelectedModels([...selectedModels, model.name]);
-    }
+    setSelectedModels((current) =>
+      current.includes(model.name)
+        ? current.filter((name) => name !== model.name)
+        : [...current, model.name]
+    );
   };
 
   const handleBulkDelete = async () => {
-    if (selectedModels.length === 0) return;
-
-    if (!window.confirm(`Are you sure you want to delete ${selectedModels.length} models?`)) {
+    const count = selectedModels.length;
+    if (count === 0) {
       return;
     }
 
     try {
-      setLoading(true);
+      setIsBulkDeleting(true);
       for (const name of selectedModels) {
         await ollamaService.deleteModel(name);
       }
@@ -221,107 +255,102 @@ export default function Models() {
       await fetchModels();
       setSelectedModels([]);
       setIsSelectionMode(false);
-      setLoading(false);
+      setBulkDeleteOpen(false);
 
-      setSnackbar({
-        open: true,
-        message: `Successfully deleted ${selectedModels.length} models`,
-        severity: 'success'
-      });
+      setSnackbar({ open: true, message: deleteSuccessMessage(count), severity: 'success' });
     } catch (err) {
       console.error('Error deleting models:', err);
-      setLoading(false);
+      setBulkDeleteOpen(false);
       setSnackbar({
         open: true,
-        message: 'Failed to delete some models',
+        message: 'Some models could not be deleted. Please try again.',
         severity: 'error'
       });
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
   const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
+    setSnackbar((current) => ({ ...current, open: false }));
   };
 
-  if (loading && models.length === 0) {
-    return <LoadingState message="Loading models..." />;
-  }
-
-  return (
-    <Box sx={{ minHeight: '100%', pb: 4 }}>
-      <Box sx={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        mb: 4,
-        flexWrap: 'wrap',
-        gap: 2
-      }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Local Models
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Manage your downloaded LLMs
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          {isSelectionMode ? (
-            <>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={handleBulkDelete}
-                disabled={selectedModels.length === 0}
-                sx={{ borderRadius: 2, fontWeight: 600 }}
-              >
-                Delete Selected ({selectedModels.length})
-              </Button>
-              <Button
-                variant="text"
-                onClick={handleToggleSelectionMode}
-                sx={{ borderRadius: 2, fontWeight: 600 }}
-              >
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <Button
-              variant="outlined"
-              onClick={handleToggleSelectionMode}
-              sx={{ borderRadius: 2, fontWeight: 600 }}
-            >
-              Select Models
-            </Button>
-          )}
+  const headerActions = loading ? null : (
+    <>
+      {isSelectionMode ? (
+        <>
           <Button
             variant="contained"
-            startIcon={<DownloadIcon />}
-            onClick={handleOpenPullDialog}
-            sx={{
-              borderRadius: 2,
-              px: 3,
-              py: 1,
-              fontWeight: 600,
-              boxShadow: theme.shadows[4]
-            }}
+            color="error"
+            startIcon={<DeleteIcon />}
+            onClick={() => setBulkDeleteOpen(true)}
+            disabled={selectedModels.length === 0}
           >
-            Pull New Model
+            {deleteSelectedLabel(selectedModels.length)}
           </Button>
-        </Box>
-      </Box>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-          {error}
-        </Alert>
+          <Button variant="text" onClick={handleToggleSelectionMode}>
+            Cancel
+          </Button>
+        </>
+      ) : (
+        <Button
+          variant="outlined"
+          startIcon={<SelectIcon />}
+          onClick={handleToggleSelectionMode}
+          disabled={models.length === 0}
+        >
+          Select models
+        </Button>
       )}
+      <Button
+        variant="contained"
+        startIcon={<DownloadIcon />}
+        onClick={handleOpenPullDialog}
+        sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+      >
+        Pull new model
+      </Button>
+    </>
+  );
 
-      <Grid container spacing={3}>
-        {models.length > 0 ? (
-          models.map((model) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={model.name}>
-              <Box sx={{ height: '100%' }}>
+  return (
+    <Box sx={{ minHeight: '100%', pb: SPACING.pageHeader }}>
+      <PageHeader
+        title="Local Models"
+        description="Browse the models on this machine, inspect their details, deploy them or free up disk space."
+        actions={headerActions}
+      />
+
+      {error && !loading && <ErrorState title="Ollama unreachable" message={error} onRetry={handleRetry} />}
+
+      {loading ? (
+        <Grid container spacing={SPACING.grid} aria-busy="true" aria-label="Loading models">
+          {Array.from({ length: MODEL_SKELETON_COUNT }, (_, index) => (
+            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={`model-skeleton-${index}`}>
+              <Card sx={{ borderRadius: RADIUS.lg }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Skeleton variant="text" width="70%" height={28} />
+                  <Skeleton variant="rounded" width="45%" height={22} sx={{ my: 1.5 }} />
+                  <Skeleton variant="text" width="55%" />
+                  <Skeleton variant="text" width="60%" />
+                  <Skeleton variant="rounded" height={MODEL_SKELETON_BUTTON_HEIGHT} sx={{ mt: 2 }} />
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      ) : models.length > 0 ? (
+        <>
+          {isSelectionMode && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }} aria-live="polite">
+              {selectedModels.length === 0
+                ? 'Pick the models you want to remove.'
+                : deleteSelectedLabel(selectedModels.length)}
+            </Typography>
+          )}
+          <Grid container spacing={SPACING.grid}>
+            {models.map((model) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={model.name}>
                 <ModelCard
                   model={model}
                   onDelete={handleDeleteModel}
@@ -331,40 +360,25 @@ export default function Models() {
                   selected={selectedModels.includes(model.name)}
                   onSelect={handleSelectModel}
                 />
-              </Box>
-            </Grid>
-          ))
-        ) : (
-          <Grid size={12}>
-            <Box sx={{
-              textAlign: 'center',
-              py: 8,
-              bgcolor: 'background.paper',
-              borderRadius: 2,
-              border: '1px dashed',
-              borderColor: 'divider'
-            }}>
-              <DownloadIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No models available
-              </Typography>
-              <Typography color="text.secondary" sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
-                Your local library is empty. Pull a model from the Ollama library to get started.
-              </Typography>
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={handleOpenPullDialog}
-                sx={{ borderRadius: 2 }}
-              >
-                Browse Models
-              </Button>
-            </Box>
+              </Grid>
+            ))}
           </Grid>
-        )}
-      </Grid>
+        </>
+      ) : (
+        !error && (
+          <EmptyState
+            icon={<DownloadIcon />}
+            title="No models yet"
+            description="Your local library is empty. Pull a model from the Ollama library to get started."
+            action={
+              <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenPullDialog}>
+                Pull your first model
+              </Button>
+            }
+          />
+        )
+      )}
 
-      {/* Pull Model Dialog */}
       <ModelPullDialog
         open={isPullDialogOpen}
         onClose={handleClosePullDialog}
@@ -373,7 +387,6 @@ export default function Models() {
         progress={pullProgress}
       />
 
-      {/* Deploy Model Dialog */}
       <ModelDeployDialog
         open={isDeployDialogOpen}
         onClose={handleCloseDeployDialog}
@@ -382,40 +395,63 @@ export default function Models() {
         model={selectedModel}
       />
 
-      {/* Model Details Dialog */}
       <ModelDetailsDialog
         open={isInfoDialogOpen}
         onClose={handleCloseInfoDialog}
         modelName={selectedModel?.name || ''}
       />
 
-      {/* Snackbar for notifications */}
+      <Dialog
+        open={isBulkDeleteOpen}
+        onClose={() => !isBulkDeleting && setBulkDeleteOpen(false)}
+        aria-labelledby="bulk-delete-title"
+        slotProps={{ paper: { sx: { borderRadius: RADIUS.lg } } }}
+      >
+        <DialogTitle id="bulk-delete-title">Delete selected models?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{deleteConfirmQuestion(selectedModels.length)}</DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setBulkDeleteOpen(false)} disabled={isBulkDeleting} sx={{ color: 'text.secondary' }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => void handleBulkDelete()}
+            color="error"
+            variant="contained"
+            startIcon={<DeleteIcon />}
+            loading={isBulkDeleting}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={SNACKBAR_AUTO_HIDE_MS}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert
-          onClose={handleCloseSnackbar}
-          severity={snackbar.severity}
-          variant="filled"
-          sx={{ borderRadius: 2, fontWeight: 500 }}
-        >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled">
           {snackbar.message}
         </Alert>
       </Snackbar>
 
-      {/* FAB for mobile */}
-      <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
-        <Fab
-          color="primary"
-          sx={{ position: 'fixed', bottom: 16, right: 16 }}
-          onClick={handleOpenPullDialog}
-        >
-          <AddIcon />
-        </Fab>
-      </Box>
+      {/* Compact primary action for small screens, where the header button is hidden. */}
+      <Fab
+        color="primary"
+        aria-label="Pull new model"
+        sx={{
+          display: { xs: 'inline-flex', sm: 'none' },
+          position: 'fixed',
+          bottom: FAB_OFFSET,
+          right: FAB_OFFSET
+        }}
+        onClick={handleOpenPullDialog}
+      >
+        <AddIcon />
+      </Fab>
     </Box>
   );
 }

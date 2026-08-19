@@ -11,15 +11,17 @@ A modern web interface to manage your [Ollama](https://ollama.com/) instance. Th
 
 - **Dashboard**: View real-time system resources (CPU, RAM, GPU, VRAM), monitor hardware performance, and get an overview of your Ollama instance
 - **Model Management**: Pull models, inspect model details (Modelfile, parameters), and bulk delete models
-- **Model Creation**: Create custom model variants with specific system prompts and parameters
+- **Model Creation**: Create custom model variants with specific system prompts and parameters, with a live Modelfile preview
 - **Advanced Chat**: Interact with models using a clean interface with active model switching and Markdown support
 - **Model Deployment**: Configure and deploy models with custom parameters (context size, temperature) with real-time state tracking
 - **Settings**: Configure server connections and UI preferences
+- **Light, dark and system themes**: The theme follows your operating system by default and can be pinned to light or dark; the chosen theme is applied before the first paint, so there is no flash on reload
+- **Keyboard and screen-reader friendly**: Visible focus rings, a skip-to-content link, labelled controls, and animations that respect `prefers-reduced-motion`
 
 ## Prerequisites
 
-- Node.js (v18+)
-- npm or yarn
+- Node.js 20.19+ or 22.12+ (required by Vite 8)
+- npm
 - A running Ollama instance (typically on http://localhost:11434)
 
 ## Installation and Setup
@@ -119,15 +121,20 @@ In the Settings page, you can configure:
 
 1. **Ollama Server URL**: If your Ollama instance is running on a different host or port (default: http://localhost:11434)
 2. **System Monitoring Server URL**: If your monitoring server is running on a different host or port (default: http://localhost:3001)
-3. **UI Settings**: Dark mode, auto-refresh options, and refresh intervals
+3. **Appearance**: Light, dark, or follow the operating system
+4. **Dashboard**: Auto-refresh on/off and the refresh interval in seconds
+
+All of these are stored in the browser's `localStorage`, so they are per browser and
+per machine. There is no server-side configuration and no environment variables to set.
 
 ## Technologies Used
 
 Frontend:
 - React 19
 - TypeScript
-- Material UI
-- Chart.js
+- Material UI v9 (with Emotion)
+- Chart.js via react-chartjs-2
+- react-router-dom
 - Vite
 
 Backend (Monitoring Server):
@@ -135,6 +142,24 @@ Backend (Monitoring Server):
 - Express
 - systeminformation (for hardware metrics)
 - TypeScript
+
+## Project Structure
+
+```
+src/
+  api/          Axios/fetch wrappers around the Ollama HTTP API
+  components/   Reusable UI: layout, model cards, dialogs, loading/empty/error states
+  constants/    App defaults, localStorage keys and other named constants
+  context/      Theme preference context
+  hooks/        Small shared hooks
+  pages/        One component per route
+  theme/        Design tokens and the Material UI theme factory
+  utils/        Locale-aware number, byte and date formatting
+server/         Express monitoring service that reports CPU, memory and GPU usage
+```
+
+Styling goes through the Material UI theme in `src/theme`. Add new colours, radii,
+spacing or motion values as tokens in `src/theme/tokens.ts` rather than inline literals.
 
 ## Contributing
 

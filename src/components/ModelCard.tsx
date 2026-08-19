@@ -4,6 +4,7 @@ import {
   Typography,
   Box,
   Button,
+  Checkbox,
   Menu,
   MenuItem,
   Chip,
@@ -22,12 +23,19 @@ import {
   Storage as StorageIcon,
   AccessTime as TimeIcon,
   Code as CodeIcon,
+  DeleteOutlined as DeleteIcon,
   RocketLaunch as DeployIcon
 } from '@mui/icons-material';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Model } from '../api/ollamaApi';
+import { EASING, HOVER_LIFT, MOTION, RADIUS, SHADOWS } from '../theme';
+import { formatBytes, formatDate } from '../utils/format';
 
 const MENU_ITEM_FONT_WEIGHT = 500;
+const SELECTED_OUTLINE_WIDTH = 2;
+const ICON_BADGE_PADDING = 1;
+const META_ICON_SIZE = 16;
+const MENU_MIN_WIDTH = 168;
 
 interface ModelCardProps {
   model: Model;
@@ -52,6 +60,15 @@ export default function ModelCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const open = Boolean(anchorEl);
   const theme = useTheme();
+  const shadows = theme.palette.mode === 'dark' ? SHADOWS.dark : SHADOWS.light;
+
+  // Unique per card: the previous hardcoded ids were duplicated across every
+  // rendered model, breaking the menu/dialog ARIA associations.
+  const reactId = useId();
+  const menuButtonId = `model-menu-button-${reactId}`;
+  const menuId = `model-menu-${reactId}`;
+  const deleteTitleId = `delete-title-${reactId}`;
+  const deleteDescriptionId = `delete-description-${reactId}`;
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget);
@@ -75,154 +92,137 @@ export default function ModelCard({
     setConfirmDelete(false);
   };
 
-  const formatSize = (size: number) => {
-    const gb = size / (1024 * 1024 * 1024);
-    if (gb >= 1) {
-      return `${gb.toFixed(2)} GB`;
+  const handleCardClick = () => {
+    if (selectable && onSelect) {
+      onSelect(model);
     }
-
-    const mb = size / (1024 * 1024);
-    if (mb >= 1) {
-      return `${mb.toFixed(2)} MB`;
-    }
-
-    const kb = size / 1024;
-    return `${kb.toFixed(2)} KB`;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
   };
 
   return (
     <>
-      <Card sx={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        '&:hover': {
-          transform: 'translateY(-4px)',
-          boxShadow: theme.shadows[8],
-        },
-        borderRadius: 3,
-        overflow: 'visible',
-        border: selected ? `2px solid ${theme.palette.primary.main}` : 'none',
-        cursor: selectable ? 'pointer' : 'default'
-      }}
-        onClick={() => {
-          if (selectable && onSelect) {
-            onSelect(model);
-          }
+      <Card
+        sx={{
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          transition: `transform ${MOTION.base}ms ${EASING}, box-shadow ${MOTION.base}ms ${EASING}, border-color ${MOTION.base}ms ${EASING}`,
+          '&:hover': {
+            transform: `translateY(-${HOVER_LIFT}px)`,
+            boxShadow: shadows.lg,
+            borderColor: alpha(theme.palette.primary.main, 0.35),
+          },
+          borderRadius: RADIUS.lg,
+          // `outline` rather than a border so selecting a card does not shift
+          // its contents by the border width.
+          outline: selected ? `${SELECTED_OUTLINE_WIDTH}px solid ${theme.palette.primary.main}` : 'none',
+          outlineOffset: -SELECTED_OUTLINE_WIDTH,
+          cursor: selectable ? 'pointer' : 'default'
         }}
+        onClick={handleCardClick}
       >
         {selectable && (
-          <Box sx={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            zIndex: 10,
-            bgcolor: selected ? 'primary.main' : 'background.paper',
-            borderRadius: '50%',
-            width: 24,
-            height: 24,
-            border: `2px solid ${selected ? theme.palette.primary.main : theme.palette.divider}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: theme.shadows[2]
-          }}>
-            {selected && (
-              <Box sx={{
-                width: 10,
-                height: 10,
-                bgcolor: 'white',
-                borderRadius: '50%'
-              }} />
-            )}
-          </Box>
+          <Checkbox
+            checked={selected}
+            onChange={() => onSelect?.(model)}
+            onClick={(event) => event.stopPropagation()}
+            slotProps={{ input: { 'aria-label': `Select ${model.name}` } }}
+            sx={{
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              zIndex: 2,
+            }}
+          />
         )}
         <CardContent sx={{ flexGrow: 1, p: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box sx={{
-                p: 1,
-                borderRadius: 2,
-                bgcolor: alpha(theme.palette.primary.main, 0.1),
-                color: 'primary.main',
-                display: 'flex'
-              }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+              <Box
+                aria-hidden
+                sx={{
+                  p: ICON_BADGE_PADDING,
+                  borderRadius: RADIUS.md,
+                  bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.16 : 0.1),
+                  color: 'primary.main',
+                  display: 'flex',
+                  flexShrink: 0,
+                }}
+              >
                 <CodeIcon fontSize="small" />
               </Box>
-              <Typography variant="h6" component="div" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+              <Typography
+                variant="h6"
+                component="h3"
+                title={model.name}
+                sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}
+              >
                 {model.name}
               </Typography>
             </Box>
-            <IconButton
-              id="model-menu-button"
-              aria-controls={open ? 'model-menu' : undefined}
-              aria-haspopup="true"
-              aria-expanded={open ? 'true' : undefined}
-              onClick={handleClick}
-              size="small"
-              sx={{ mt: -0.5, mr: -0.5 }}
-            >
-              <MoreVertIcon />
-            </IconButton>
-          </Box>
-
-          <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {model.details && (
-              <>
-                <Chip
-                  label={`${model.details.parameter_size}`}
-                  size="small"
-                  sx={{
-                    borderRadius: 1,
-                    bgcolor: alpha(theme.palette.secondary.main, 0.1),
-                    color: 'secondary.main',
-                    fontWeight: 600,
-                    fontSize: '0.75rem'
-                  }}
-                />
-                {model.details.quantization_level && (
-                  <Chip
-                    label={`Q${model.details.quantization_level}`}
-                    size="small"
-                    sx={{
-                      borderRadius: 1,
-                      bgcolor: alpha(theme.palette.info.main, 0.1),
-                      color: 'info.main',
-                      fontWeight: 600,
-                      fontSize: '0.75rem'
-                    }}
-                  />
-                )}
-                <Chip
-                  label={model.details.format || 'GGUF'}
-                  size="small"
-                  sx={{
-                    borderRadius: 1,
-                    fontWeight: 600,
-                    fontSize: '0.75rem'
-                  }}
-                />
-              </>
+            {!selectable && (
+              <IconButton
+                id={menuButtonId}
+                aria-label={`More actions for ${model.name}`}
+                aria-controls={open ? menuId : undefined}
+                aria-haspopup="true"
+                aria-expanded={open ? 'true' : undefined}
+                onClick={handleClick}
+                size="small"
+                sx={{ mt: -0.5, mr: -0.5, flexShrink: 0 }}
+              >
+                <MoreVertIcon />
+              </IconButton>
             )}
           </Box>
 
+          {model.details && (
+            <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {model.details.parameter_size && (
+                <Chip
+                  label={model.details.parameter_size}
+                  size="small"
+                  sx={{
+                    bgcolor: alpha(theme.palette.secondary.main, 0.12),
+                    color: 'secondary.main',
+                    fontSize: '0.75rem'
+                  }}
+                />
+              )}
+              {model.details.quantization_level && (
+                <Chip
+                  // Ollama already returns a prefixed level such as "Q4_K_M";
+                  // adding another "Q" produced labels like "QQ4_K_M".
+                  label={model.details.quantization_level}
+                  size="small"
+                  sx={{
+                    bgcolor: alpha(theme.palette.info.main, 0.12),
+                    color: 'info.main',
+                    fontSize: '0.75rem'
+                  }}
+                />
+              )}
+              {model.details.format && (
+                <Chip
+                  label={model.details.format.toUpperCase()}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: '0.75rem' }}
+                />
+              )}
+            </Box>
+          )}
+
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
-              <StorageIcon sx={{ fontSize: 16, opacity: 0.7 }} />
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {formatSize(model.size)}
+              <StorageIcon aria-hidden sx={{ fontSize: META_ICON_SIZE }} />
+              <Typography variant="body2" sx={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                {formatBytes(model.size)}
               </Typography>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
-              <TimeIcon sx={{ fontSize: 16, opacity: 0.7 }} />
+              <TimeIcon aria-hidden sx={{ fontSize: META_ICON_SIZE }} />
               <Typography variant="body2">
                 Updated {formatDate(model.modified_at)}
               </Typography>
@@ -230,24 +230,20 @@ export default function ModelCard({
           </Box>
         </CardContent>
 
-        <Divider sx={{ opacity: 0.5 }} />
+        <Divider />
 
         <Box sx={{ p: 2 }}>
           <Button
             variant="contained"
             fullWidth
-            onClick={() => onDeploy(model)}
-            startIcon={<DeployIcon />}
-            sx={{
-              borderRadius: 2,
-              py: 1,
-              fontWeight: 600,
-              textTransform: 'none',
-              boxShadow: 'none',
-              '&:hover': {
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-              }
+            // Without stopPropagation, deploying while in selection mode also
+            // toggled the card's selected state.
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeploy(model);
             }}
+            startIcon={<DeployIcon />}
+            sx={{ py: 1 }}
           >
             Deploy Model
           </Button>
@@ -255,17 +251,17 @@ export default function ModelCard({
       </Card>
 
       <Menu
-        id="model-menu"
+        id={menuId}
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
         slotProps={{
           list: {
-            'aria-labelledby': 'model-menu-button',
+            'aria-labelledby': menuButtonId,
           },
           paper: {
             elevation: 3,
-            sx: { borderRadius: 2, minWidth: 150, mt: 1 }
+            sx: { borderRadius: RADIUS.md, minWidth: MENU_MIN_WIDTH, mt: 1 }
           }
         }}
       >
@@ -285,7 +281,7 @@ export default function ModelCard({
         </MenuItem>
         <Divider sx={{ my: 0.5 }} />
         <MenuItem onClick={handleDeleteClick} sx={{ gap: 1.5, color: 'error.main' }}>
-          <Box component="span" sx={{ display: 'flex', fontSize: 20 }}>×</Box>
+          <DeleteIcon fontSize="small" color="error" />
           <Typography variant="body2" sx={{ fontWeight: MENU_ITEM_FONT_WEIGHT }}>Delete</Typography>
         </MenuItem>
       </Menu>
@@ -293,32 +289,29 @@ export default function ModelCard({
       <Dialog
         open={confirmDelete}
         onClose={handleCancelDelete}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
+        aria-labelledby={deleteTitleId}
+        aria-describedby={deleteDescriptionId}
         slotProps={{
           paper: {
-            sx: { borderRadius: 3 }
+            sx: { borderRadius: RADIUS.lg }
           }
         }}
       >
-        <DialogTitle id="alert-dialog-title" sx={{ fontWeight: 600 }}>
-          {"Delete Model?"}
-        </DialogTitle>
+        <DialogTitle id={deleteTitleId}>Delete model?</DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description">
+          <DialogContentText id={deleteDescriptionId}>
             Are you sure you want to delete <strong>{model.name}</strong>? This action cannot be undone and you will need to download the model again.
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ p: 2.5 }}>
-          <Button onClick={handleCancelDelete} sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancel</Button>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={handleCancelDelete} sx={{ color: 'text.secondary' }}>Cancel</Button>
           <Button
             onClick={handleConfirmDelete}
             color="error"
             variant="contained"
-            disableElevation
-            sx={{ borderRadius: 2, fontWeight: 600 }}
+            startIcon={<DeleteIcon />}
           >
-            Delete Model
+            Delete model
           </Button>
         </DialogActions>
       </Dialog>
