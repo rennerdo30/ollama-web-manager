@@ -65,18 +65,28 @@ export default function CreateModel() {
 
     const navigate = useNavigate();
 
-    const fetchModels = useCallback(async () => {
+    // The `cancelled` flag keeps a late response from writing state after the
+    // component has unmounted.
+    const fetchModels = useCallback(async (isCancelled: () => boolean) => {
         try {
             const data = await ollamaService.getModels();
+            if (isCancelled()) return;
             setModels(data);
         } catch (err) {
             console.error('Error fetching models:', err);
+            if (isCancelled()) return;
             setError('Could not load base models. Check that Ollama is running and reachable.');
         }
     }, []);
 
     useEffect(() => {
-        void fetchModels();
+        let cancelled = false;
+        // Deferred to a microtask so the effect body performs no state update
+        // itself (react-hooks/set-state-in-effect).
+        void Promise.resolve().then(() => fetchModels(() => cancelled));
+        return () => {
+            cancelled = true;
+        };
     }, [fetchModels]);
 
     const generateModelfile = () => {

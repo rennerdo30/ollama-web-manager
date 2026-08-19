@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -121,24 +121,25 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Keep the interval callback fresh without restarting the timer each render.
-  const fetchDataRef = useRef(fetchData);
-  fetchDataRef.current = fetchData;
-
   useEffect(() => {
-    void fetchDataRef.current(true);
+    // Deferred to a microtask so the effect body itself performs no state
+    // update: react-hooks/set-state-in-effect forbids that, and `fetchData`
+    // flips `loading` straight away when asked to show the spinner.
+    void Promise.resolve().then(() => fetchData(true));
 
     const { autoRefresh, intervalSeconds } = readRefreshSettings();
     if (!autoRefresh) {
       return;
     }
 
+    // `fetchData` is a useCallback with no dependencies, so the timer is
+    // installed once and always sees the current implementation.
     const intervalId = setInterval(() => {
-      void fetchDataRef.current();
+      void fetchData();
     }, intervalSeconds * MS_PER_SECOND);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [fetchData]);
 
   const chartOptions = useMemo<ChartOptions<'line'>>(() => ({
     responsive: true,

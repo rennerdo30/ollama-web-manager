@@ -30,7 +30,7 @@ import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { ollamaService, Model, ModelConfig } from '../api/ollamaApi';
-import { SNACKBAR_AUTO_HIDE_MS } from '../constants/app';
+import { NEVER_CANCELLED, SNACKBAR_AUTO_HIDE_MS } from '../constants/app';
 import { RADIUS, SPACING } from '../theme';
 
 const MODEL_SKELETON_COUNT = 6;
@@ -77,21 +77,33 @@ export default function Models() {
   const [isBulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-  const fetchModels = useCallback(async () => {
+  // `isCancelled` lets the mount effect discard a response that arrives after
+  // unmount while still sharing one code path with the retry button.
+  const fetchModels = useCallback(async (isCancelled: () => boolean = NEVER_CANCELLED) => {
     try {
       const data = await ollamaService.getModels();
+      if (isCancelled()) return;
       setModels(data);
       setError('');
     } catch (err) {
       console.error('Error fetching models:', err);
+      if (isCancelled()) return;
       setError('Could not load your model library. Check that Ollama is running and reachable.');
     } finally {
-      setLoading(false);
+      if (!isCancelled()) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void fetchModels();
+    let cancelled = false;
+    // Deferred to a microtask so the effect body performs no state update
+    // itself (react-hooks/set-state-in-effect).
+    void Promise.resolve().then(() => fetchModels(() => cancelled));
+    return () => {
+      cancelled = true;
+    };
   }, [fetchModels]);
 
   const handleRetry = () => {

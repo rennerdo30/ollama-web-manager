@@ -35,7 +35,7 @@ import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 import { ollamaService, Model, ModelConfig, DeployedModel } from '../api/ollamaApi';
-import { SNACKBAR_AUTO_HIDE_MS } from '../constants/app';
+import { NEVER_CANCELLED, SNACKBAR_AUTO_HIDE_MS } from '../constants/app';
 import { EASING, MOTION, RADIUS, SHADOWS, SPACING } from '../theme';
 import { formatBytes, formatCount, formatDateTime, formatGigabytesFromBytes } from '../utils/format';
 
@@ -84,7 +84,9 @@ export default function Deploy() {
   const theme = useTheme();
   const shadows = theme.palette.mode === 'dark' ? SHADOWS.dark : SHADOWS.light;
 
-  const fetchData = useCallback(async ({ showSpinner = false } = {}) => {
+  // `isCancelled` keeps a late response from writing state after unmount; the
+  // mount effect passes it, the refresh button does not need it.
+  const fetchData = useCallback(async ({ showSpinner = false, isCancelled = NEVER_CANCELLED } = {}) => {
     if (showSpinner) {
       setRefreshing(true);
     }
@@ -95,23 +97,35 @@ export default function Deploy() {
         ollamaService.getDeployedModels(),
       ]);
 
+      if (isCancelled()) return;
       setModels(modelsData);
       setDeployedModels(deployedData);
       setError('');
     } catch (err) {
       console.error('Error fetching deployment data:', err);
+      if (isCancelled()) return;
       setError('Could not load deployments. Check that Ollama is running and reachable.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!isCancelled()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void fetchData();
+    let cancelled = false;
+    // Deferred to a microtask so the effect body performs no state update
+    // itself (react-hooks/set-state-in-effect).
+    void Promise.resolve().then(() => fetchData({ isCancelled: () => cancelled }));
+    return () => {
+      cancelled = true;
+    };
   }, [fetchData]);
 
   const handleRefresh = () => {
+    // Setting state in an event handler is fine; doing it synchronously inside
+    // the mount effect is what react-hooks/set-state-in-effect forbids.
     void fetchData({ showSpinner: true });
   };
 

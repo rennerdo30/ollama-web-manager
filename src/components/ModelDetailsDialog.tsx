@@ -20,56 +20,78 @@ interface ModelDetailsDialogProps {
     modelName: string;
 }
 
+// Module-scope component: defining it inside ModelDetailsDialog would recreate
+// it on every render and remount its subtree (react-hooks "no components
+// created during render").
+const CodeBlock = ({ content, label }: { content: string; label: string }) => (
+    <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
+            {label}
+        </Typography>
+        <Paper
+            elevation={0}
+            sx={{
+                p: 2,
+                bgcolor: 'action.hover',
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'divider',
+                maxHeight: 200,
+                overflow: 'auto',
+                fontFamily: 'monospace',
+                fontSize: '0.85rem',
+                whiteSpace: 'pre-wrap'
+            }}
+        >
+            {content}
+        </Paper>
+    </Box>
+);
+
 export default function ModelDetailsDialog({ open, onClose, modelName }: ModelDetailsDialogProps) {
     const [info, setInfo] = useState<UserShowResponse | null>(null);
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [shownModel, setShownModel] = useState<string | null>(null);
+
+    // Reset while rendering when the dialog opens or the target model changes
+    // ("adjusting state when props change" pattern — allowed during render,
+    // unlike synchronous setState inside an effect).
+    if (open && shownModel !== modelName) {
+        setShownModel(modelName);
+        setInfo(null);
+        setError('');
+    }
+    if (!open && shownModel !== null) {
+        setShownModel(null);
+        setInfo(null);
+        setError('');
+    }
+
+    // Loading is derived, not stored: the fetch is in flight exactly while we
+    // have neither data nor an error for the currently shown model.
+    const loading = open && !info && !error;
 
     useEffect(() => {
-        if (open && modelName) {
-            fetchModelInfo();
+        if (!open || !modelName) {
+            return;
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        let cancelled = false;
+        ollamaService.showModelInfo(modelName)
+            .then((data) => {
+                if (!cancelled) {
+                    setInfo(data);
+                }
+            })
+            .catch((err) => {
+                console.error('Failed to fetch model info:', err);
+                if (!cancelled) {
+                    setError('Failed to load model details');
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
     }, [open, modelName]);
-
-    const fetchModelInfo = async () => {
-        try {
-            setLoading(true);
-            setError('');
-            const data = await ollamaService.showModelInfo(modelName);
-            setInfo(data);
-        } catch (err) {
-            console.error('Failed to fetch model info:', err);
-            setError('Failed to load model details');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const CodeBlock = ({ content, label }: { content: string; label: string }) => (
-        <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
-                {label}
-            </Typography>
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 2,
-                    bgcolor: 'action.hover',
-                    borderRadius: 2,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    maxHeight: 200,
-                    overflow: 'auto',
-                    fontFamily: 'monospace',
-                    fontSize: '0.85rem',
-                    whiteSpace: 'pre-wrap'
-                }}
-            >
-                {content}
-            </Paper>
-        </Box>
-    );
 
     return (
         <Dialog

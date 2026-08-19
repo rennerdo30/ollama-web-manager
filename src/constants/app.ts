@@ -26,3 +26,10 @@ export const CHART_HISTORY_LENGTH = 20;
 
 /** How long notification snackbars stay on screen, in ms. */
 export const SNACKBAR_AUTO_HIDE_MS = 6000;
+
+/**
+ * Default cancellation predicate for fetch helpers. Mount effects pass a real
+ * predicate backed by their cleanup flag so a late response cannot write state
+ * after unmount; event handlers rely on this no-op default.
+ */
+export const NEVER_CANCELLED = () => false;

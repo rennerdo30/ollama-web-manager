@@ -81,7 +81,9 @@ export default function Chat() {
   }, []);
 
   useEffect(() => {
-    void fetchModels();
+    // Deferred to a microtask so the effect body performs no state update
+    // itself (react-hooks/set-state-in-effect).
+    void Promise.resolve().then(() => fetchModels());
   }, [fetchModels]);
 
   // Keep the newest message in view, honouring the reduced-motion preference.
