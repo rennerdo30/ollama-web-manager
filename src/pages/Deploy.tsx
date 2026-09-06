@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Grid,
   Typography,
   Box,
   Paper,
+  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -13,8 +14,8 @@ import {
   Button,
   Chip,
   IconButton,
-  Alert,
   Snackbar,
+  Alert,
   useTheme,
   alpha,
   Tooltip
@@ -22,91 +23,121 @@ import {
 import {
   PlayArrow as PlayIcon,
   Stop as StopIcon,
-  Settings as SettingsIcon,
+  Tune as TuneIcon,
   Refresh as RefreshIcon,
   RocketLaunch as DeployIcon,
   Memory as MemoryIcon,
   Speed as SpeedIcon,
   Layers as LayersIcon
 } from '@mui/icons-material';
-import LoadingState from '../components/LoadingState';
 import ModelDeployDialog from '../components/ModelDeployDialog';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import { ollamaService, Model, ModelConfig, DeployedModel } from '../api/ollamaApi';
+import { NEVER_CANCELLED, SNACKBAR_AUTO_HIDE_MS } from '../constants/app';
+import { EASING, MOTION, RADIUS, SHADOWS, SPACING } from '../theme';
+import { formatBytes, formatCount, formatDateTime, formatGigabytesFromBytes } from '../utils/format';
 
-// Note: This is a mock interface since Ollama doesn't provide active models directly
-// interface DeployedModel { ... } removed to use shared interface
+const DEPLOY_TABLE_COLUMN_COUNT = 5;
+const SKELETON_ROW_COUNT = 3;
+const AVAILABLE_SKELETON_COUNT = 4;
+const META_ICON_SIZE = 16;
+const AVAILABLE_CARD_MIN_HEIGHT = 148;
+
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error';
+}
+
+const INITIAL_SNACKBAR: SnackbarState = { open: false, message: '', severity: 'success' };
+
+/**
+ * Builds a minimal `Model` for deployments that are no longer in the local
+ * library (e.g. started outside this app), so they can still be reconfigured.
+ */
+const toPlaceholderModel = (name: string): Model => ({
+  name,
+  modified_at: '',
+  size: 0,
+  digest: '',
+  details: {
+    format: '',
+    family: '',
+    families: [],
+    parameter_size: '',
+    quantization_level: '',
+  },
+});
 
 export default function Deploy() {
   const [models, setModels] = useState<Model[]>([]);
   const [deployedModels, setDeployedModels] = useState<DeployedModel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isDeployDialogOpen, setDeployDialogOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [snackbar, setSnackbar] = useState<SnackbarState>(INITIAL_SNACKBAR);
   const theme = useTheme();
+  const shadows = theme.palette.mode === 'dark' ? SHADOWS.dark : SHADOWS.light;
 
-  // Get deployed models from our service
-  const fetchDeployedModels = async () => {
-    return await ollamaService.getDeployedModels();
-  };
+  // `isCancelled` keeps a late response from writing state after unmount; the
+  // mount effect passes it, the refresh button does not need it.
+  const fetchData = useCallback(async ({ showSpinner = false, isCancelled = NEVER_CANCELLED } = {}) => {
+    if (showSpinner) {
+      setRefreshing(true);
+    }
 
-  const fetchData = async () => {
     try {
-      // Fetch models
-      const modelsData = await ollamaService.getModels();
-      setModels(modelsData);
+      const [modelsData, deployedData] = await Promise.all([
+        ollamaService.getModels(),
+        ollamaService.getDeployedModels(),
+      ]);
 
-      // Fetch deployed models (mock)
-      const deployedData = await fetchDeployedModels();
+      if (isCancelled()) return;
+      setModels(modelsData);
       setDeployedModels(deployedData);
       setError('');
-
-      setLoading(false);
     } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to fetch data. Please check if Ollama is running.');
-      setLoading(false);
+      console.error('Error fetching deployment data:', err);
+      if (isCancelled()) return;
+      setError('Could not load deployments. Check that Ollama is running and reachable.');
+    } finally {
+      if (!isCancelled()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([ollamaService.getModels(), fetchDeployedModels()])
-      .then(([modelsData, deployedData]) => {
-        if (cancelled) return;
-        setModels(modelsData);
-        setDeployedModels(deployedData);
-        setError('');
-      })
-      .catch((err) => {
-        console.error('Error fetching data:', err);
-        if (!cancelled) {
-          setError('Failed to fetch data. Please check if Ollama is running.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
+    // Deferred to a microtask so the effect body performs no state update
+    // itself (react-hooks/set-state-in-effect).
+    void Promise.resolve().then(() => fetchData({ isCancelled: () => cancelled }));
     return () => {
       cancelled = true;
     };
-     
-  }, []);
+  }, [fetchData]);
 
   const handleRefresh = () => {
     // Setting state in an event handler is fine; doing it synchronously inside
     // the mount effect is what react-hooks/set-state-in-effect forbids.
-    setLoading(true);
-    fetchData();
+    void fetchData({ showSpinner: true });
   };
 
   const handleOpenDeployDialog = (model: Model) => {
     setSelectedModel(model);
     setDeployDialogOpen(true);
+  };
+
+  /** Reopens the deploy dialog for an existing deployment so it can be retuned. */
+  const handleReconfigure = (deployed: DeployedModel) => {
+    const match = models.find((model) => model.name === deployed.name);
+    handleOpenDeployDialog(match ?? toPlaceholderModel(deployed.name));
   };
 
   const handleCloseDeployDialog = () => {
@@ -134,8 +165,7 @@ export default function Deploy() {
       setIsDeploying(false);
       setDeployDialogOpen(false);
 
-      // Refresh deployed models list
-      fetchData();
+      await fetchData();
 
       setSnackbar({
         open: true,
@@ -156,9 +186,7 @@ export default function Deploy() {
   const handleStopModel = async (modelName: string) => {
     try {
       await ollamaService.stopModelServer(modelName);
-
-      // Refresh deployed models list
-      fetchData();
+      await fetchData();
 
       setSnackbar({
         open: true,
@@ -176,114 +204,113 @@ export default function Deploy() {
   };
 
   const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
+    setSnackbar((current) => ({ ...current, open: false }));
   };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  if (loading) {
-    return <LoadingState message="Loading deployed models..." />;
-  }
 
   return (
-    <Box sx={{ minHeight: '100%', pb: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
-            Deployments
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Manage active model instances
-          </Typography>
-        </Box>
-        <Button
-          startIcon={<RefreshIcon />}
-          onClick={handleRefresh}
-          variant="outlined"
-          sx={{ borderRadius: 2 }}
-        >
-          Refresh
-        </Button>
-      </Box>
+    <Box sx={{ minHeight: '100%', pb: SPACING.pageHeader }}>
+      <PageHeader
+        title="Deployments"
+        description="Track which models are currently serving requests and start new instances with tuned parameters."
+        actions={
+          <Button
+            startIcon={<RefreshIcon />}
+            onClick={handleRefresh}
+            variant="outlined"
+            loading={refreshing}
+          >
+            Refresh
+          </Button>
+        }
+      />
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
-          {error}
-        </Alert>
+      {error && !loading && (
+        <ErrorState title="Ollama unreachable" message={error} onRetry={() => void fetchData({ showSpinner: true })} />
       )}
 
       <Paper
         elevation={0}
+        component="section"
+        aria-labelledby="active-deployments-heading"
         sx={{
-          mb: 5,
-          borderRadius: 2,
+          mb: SPACING.section,
+          borderRadius: RADIUS.md,
           border: '1px solid',
           borderColor: 'divider',
           overflow: 'hidden'
         }}
       >
-        <Box sx={{ p: 2, bgcolor: 'background.default', borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>Active Deployments</Typography>
+        <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography id="active-deployments-heading" variant="h6" component="h2">
+            Active Deployments
+          </Typography>
         </Box>
         <TableContainer>
-          <Table>
+          <Table sx={{ minWidth: 720 }}>
             <TableHead>
-              <TableRow sx={{ bgcolor: 'background.paper' }}>
-                <TableCell sx={{ fontWeight: 600 }}>Model Name</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Configuration</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Started At</TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
+              <TableRow>
+                <TableCell>Model Name</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Configuration</TableCell>
+                <TableCell>Started At</TableCell>
+                <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {deployedModels.length > 0 ? (
+              {loading ? (
+                Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+                  <TableRow key={`deploy-skeleton-${index}`}>
+                    {Array.from({ length: DEPLOY_TABLE_COLUMN_COUNT }, (_, cellIndex) => (
+                      <TableCell key={`deploy-skeleton-cell-${cellIndex}`}>
+                        <Skeleton variant="text" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : deployedModels.length > 0 ? (
                 deployedModels.map((model) => (
                   <TableRow
                     key={model.id}
                     sx={{
+                      transition: `background-color ${MOTION.fast}ms ${EASING}`,
                       '&:hover': { bgcolor: 'action.hover' }
                     }}
                   >
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <Box sx={{
-                          p: 0.8,
-                          borderRadius: 1,
-                          bgcolor: alpha(theme.palette.primary.main, 0.1),
-                          color: 'primary.main',
-                          display: 'flex'
-                        }}>
+                        <Box
+                          aria-hidden
+                          sx={{
+                            p: 0.8,
+                            borderRadius: RADIUS.sm,
+                            bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.16 : 0.1),
+                            color: 'primary.main',
+                            display: 'flex'
+                          }}
+                        >
                           <DeployIcon fontSize="small" />
                         </Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        <Typography variant="subtitle2" component="span">
                           {model.name}
                         </Typography>
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={model.status}
+                        label={model.status === 'running' ? 'Running' : 'Stopped'}
                         color={model.status === 'running' ? 'success' : 'default'}
                         size="small"
-                        sx={{
-                          fontWeight: 600,
-                          borderRadius: 1,
-                          textTransform: 'capitalize'
-                        }}
+                        variant={model.status === 'running' ? 'filled' : 'outlined'}
                       />
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                         {model.vram ? (
-                          <Tooltip title="VRAM Usage">
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                              <MemoryIcon sx={{ fontSize: 16, color: 'primary.main' }} />
-                              <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                                {(model.vram / (1024 * 1024 * 1024)).toFixed(2)} GB
+                          <Tooltip title="VRAM usage">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'primary.main' }}>
+                              <MemoryIcon aria-hidden sx={{ fontSize: META_ICON_SIZE }} />
+                              <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                {formatGigabytesFromBytes(model.vram)}
                               </Typography>
                             </Box>
                           </Tooltip>
@@ -292,60 +319,62 @@ export default function Deploy() {
                         {model.threads > 0 && (
                           <Tooltip title="Threads">
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                              <SpeedIcon sx={{ fontSize: 16 }} />
-                              <Typography variant="caption">{model.threads}</Typography>
+                              <SpeedIcon aria-hidden sx={{ fontSize: META_ICON_SIZE }} />
+                              <Typography variant="caption">{formatCount(model.threads)}</Typography>
                             </Box>
                           </Tooltip>
                         )}
 
                         {model.contextSize > 0 && (
-                          <Tooltip title="Context Size">
+                          <Tooltip title="Context size (tokens)">
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                              <MemoryIcon sx={{ fontSize: 16 }} />
-                              <Typography variant="caption">{model.contextSize}</Typography>
+                              <MemoryIcon aria-hidden sx={{ fontSize: META_ICON_SIZE }} />
+                              <Typography variant="caption">{formatCount(model.contextSize)}</Typography>
                             </Box>
                           </Tooltip>
                         )}
 
                         {model.gpuLayers > 0 && (
-                          <Tooltip title="GPU Layers">
+                          <Tooltip title="GPU layers">
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                              <LayersIcon sx={{ fontSize: 16 }} />
-                              <Typography variant="caption">{model.gpuLayers}</Typography>
+                              <LayersIcon aria-hidden sx={{ fontSize: META_ICON_SIZE }} />
+                              <Typography variant="caption">{formatCount(model.gpuLayers)}</Typography>
                             </Box>
                           </Tooltip>
                         )}
 
                         {!model.vram && model.threads === 0 && (
                           <Typography variant="caption" color="text.secondary">
-                            External Deployment
+                            External deployment
                           </Typography>
                         )}
                       </Box>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
-                        {formatDate(model.startedAt)}
+                        {formatDateTime(model.startedAt)}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                         {model.status === 'running' ? (
-                          <Tooltip title="Stop Model">
+                          <Tooltip title={`Stop ${model.name}`}>
                             <IconButton
                               color="error"
-                              onClick={() => handleStopModel(model.name)}
+                              aria-label={`Stop ${model.name}`}
+                              onClick={() => void handleStopModel(model.name)}
                               size="small"
                             >
                               <StopIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         ) : (
-                          <Tooltip title="Start Model">
+                          <Tooltip title={`Start ${model.name}`}>
                             <IconButton
                               color="success"
                               size="small"
-                              onClick={() => handleDeployModel({
+                              aria-label={`Start ${model.name}`}
+                              onClick={() => void handleDeployModel({
                                 name: model.name,
                                 threads: model.threads,
                                 context_size: model.contextSize,
@@ -356,12 +385,14 @@ export default function Deploy() {
                             </IconButton>
                           </Tooltip>
                         )}
-                        <Tooltip title="Settings">
+                        <Tooltip title={`Reconfigure ${model.name}`}>
                           <IconButton
                             color="primary"
                             size="small"
+                            aria-label={`Reconfigure ${model.name}`}
+                            onClick={() => handleReconfigure(model)}
                           >
-                            <SettingsIcon fontSize="small" />
+                            <TuneIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -370,16 +401,13 @@ export default function Deploy() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
-                    <Box sx={{ py: 6, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <DeployIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.3, mb: 2 }} />
-                      <Typography color="text.secondary" sx={{ fontWeight: 500 }}>
-                        No models currently deployed
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Deploy a model from the list below to get started
-                      </Typography>
-                    </Box>
+                  <TableCell colSpan={DEPLOY_TABLE_COLUMN_COUNT} sx={{ borderBottom: 'none' }}>
+                    <EmptyState
+                      plain
+                      icon={<DeployIcon />}
+                      title="No models are deployed"
+                      description="Pick a model below to start an instance with your preferred thread, context and GPU settings."
+                    />
                   </TableCell>
                 </TableRow>
               )}
@@ -388,72 +416,87 @@ export default function Deploy() {
         </TableContainer>
       </Paper>
 
-      <Typography variant="h5" gutterBottom sx={{ fontWeight: 700, mb: 3 }}>
-        Available to Deploy
-      </Typography>
-      <Grid container spacing={3}>
-        {models.length > 0 ? (
-          models.map((model) => (
-            <Grid size={{ xs: 12, sm: 6, md: 3 }} key={model.name}>
-              <Paper sx={{
-                p: 2.5,
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                borderRadius: 2,
-                transition: 'box-shadow 0.2s',
-                '&:hover': {
-                  boxShadow: theme.shadows[2]
-                }
-              }}>
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="h6" noWrap sx={{ fontWeight: 600, fontSize: '1rem', mb: 0.5 }}>
-                    {model.name}
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
+      <Box component="section" aria-labelledby="available-heading">
+        <Typography id="available-heading" variant="h6" component="h2" sx={{ mb: 2 }}>
+          Available to Deploy
+        </Typography>
+
+        <Grid container spacing={SPACING.grid}>
+          {loading ? (
+            Array.from({ length: AVAILABLE_SKELETON_COUNT }, (_, index) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={`available-skeleton-${index}`}>
+                <Skeleton variant="rounded" height={AVAILABLE_CARD_MIN_HEIGHT} />
+              </Grid>
+            ))
+          ) : models.length > 0 ? (
+            models.map((model) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={model.name}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2.5,
+                    height: '100%',
+                    minHeight: AVAILABLE_CARD_MIN_HEIGHT,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderRadius: RADIUS.md,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    transition: `box-shadow ${MOTION.base}ms ${EASING}, border-color ${MOTION.base}ms ${EASING}`,
+                    '&:hover': {
+                      boxShadow: shadows.md,
+                      borderColor: alpha(theme.palette.primary.main, 0.35),
+                    }
+                  }}
+                >
+                  <Box sx={{ mb: 2, minWidth: 0 }}>
+                    <Typography
+                      variant="subtitle1"
+                      component="h3"
+                      title={model.name}
+                      sx={{ mb: 0.75, wordBreak: 'break-word' }}
+                    >
+                      {model.name}
+                    </Typography>
                     <Chip
-                      label={`${(model.size / (1024 * 1024 * 1024)).toFixed(2)} GB`}
+                      // formatBytes picks MB for small models; a fixed GB unit
+                      // rendered embedding models as an unhelpful "0.26 GB".
+                      label={formatBytes(model.size)}
                       size="small"
                       sx={{
-                        height: 20,
-                        fontSize: '0.7rem',
-                        bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                        bgcolor: alpha(theme.palette.secondary.main, 0.12),
                         color: 'secondary.main',
-                        fontWeight: 600
+                        fontSize: '0.7rem'
                       }}
                     />
                   </Box>
-                </Box>
-                <Box sx={{ mt: 'auto' }}>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    onClick={() => handleOpenDeployDialog(model)}
-                    startIcon={<DeployIcon />}
-                    sx={{
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 600
-                    }}
-                  >
-                    Deploy
-                  </Button>
-                </Box>
-              </Paper>
-            </Grid>
-          ))
-        ) : (
-          <Grid size={12}>
-            <Paper sx={{ p: 4, textAlign: 'center', borderRadius: 2, border: '1px dashed', borderColor: 'divider' }}>
-              <Typography color="text.secondary">
-                No models available to deploy. Go to the Models page to pull models.
-              </Typography>
-            </Paper>
-          </Grid>
-        )}
-      </Grid>
+                  <Box sx={{ mt: 'auto' }}>
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      onClick={() => handleOpenDeployDialog(model)}
+                      startIcon={<DeployIcon />}
+                    >
+                      Deploy
+                    </Button>
+                  </Box>
+                </Paper>
+              </Grid>
+            ))
+          ) : (
+            !error && (
+              <Grid size={12}>
+                <EmptyState
+                  icon={<DeployIcon />}
+                  title="Nothing available to deploy"
+                  description="Pull a model on the Models page first, then come back to start an instance."
+                />
+              </Grid>
+            )
+          )}
+        </Grid>
+      </Box>
 
-      {/* Deploy Model Dialog */}
       <ModelDeployDialog
         open={isDeployDialogOpen}
         onClose={handleCloseDeployDialog}
@@ -462,19 +505,13 @@ export default function Deploy() {
         model={selectedModel}
       />
 
-      {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={SNACKBAR_AUTO_HIDE_MS}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert
-          onClose={handleCloseSnackbar}
-          severity={snackbar.severity}
-          variant="filled"
-          sx={{ borderRadius: 2, fontWeight: 500 }}
-        >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled">
           {snackbar.message}
         </Alert>
       </Snackbar>
